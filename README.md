@@ -1,0 +1,134 @@
+## jvm-runtime-probe (Initial Phase)
+
+Local MCP server for machine-verifiable Java code-path hits via runtime `-javaagent` probes.
+
+It complements, not replaces, JDWP:
+- JDWP/IntelliJ: pause, inspect stack/variables.
+- Probe endpoint: deterministic hit signal for agent loops (`hitCount`, `lastHitEpochMs`).
+
+### Prereqs
+
+- Node.js (tested with Node 24)
+- JDK 21+
+- Maven (for building the Java agent)
+
+### Build
+
+PowerShell note: use `npm.cmd`.
+
+```powershell
+npm.cmd install
+npm.cmd run build
+mvn -f java-agent\pom.xml -DskipTests package
+```
+
+### Install MCP (Codex)
+
+Required envs:
+- `MCP_PROBE_BASE_URL`
+- `MCP_PROBE_STATUS_PATH`
+- `MCP_PROBE_RESET_PATH`
+- `MCP_PROBE_ACTUATE_PATH` (optional, default: `/__probe/actuate`)
+
+Optional but recommended:
+- `MCP_WORKSPACE_ROOT` (if omitted, defaults to MCP server process working directory)
+
+```powershell
+codex mcp add mcp-jvm-debugger `
+  --env MCP_PROBE_BASE_URL=http://127.0.0.1:9193 `
+  --env MCP_PROBE_STATUS_PATH=/__probe/status `
+  --env MCP_PROBE_RESET_PATH=/__probe/reset `
+  --env MCP_PROBE_ACTUATE_PATH=/__probe/actuate `
+  -- node C:\Users\Altheo\repository\mcp-jvm-debugger\dist\server.js
+```
+
+Remove/re-add:
+
+```powershell
+codex mcp remove mcp-jvm-debugger
+codex mcp add mcp-jvm-debugger --env MCP_PROBE_BASE_URL=http://127.0.0.1:9193 --env MCP_PROBE_STATUS_PATH=/__probe/status --env MCP_PROBE_RESET_PATH=/__probe/reset --env MCP_PROBE_ACTUATE_PATH=/__probe/actuate -- node C:\Users\Altheo\repository\mcp-jvm-debugger\dist\server.js
+```
+
+### Install MCP (Anthropic/Kiro-style config)
+
+For clients that use an `mcpServers` JSON block (for example Anthropic/Kiro MCP integrations), add:
+
+```json
+{
+  "mcpServers": {
+    "mcp-jvm-debugger": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\Altheo\\repository\\mcp-jvm-debugger\\dist\\server.js"
+      ],
+      "env": {
+        "MCP_PROBE_BASE_URL": "http://127.0.0.1:9193",
+        "MCP_PROBE_STATUS_PATH": "/__probe/status",
+        "MCP_PROBE_RESET_PATH": "/__probe/reset",
+        "MCP_PROBE_ACTUATE_PATH": "/__probe/actuate"
+      }
+    }
+  }
+}
+```
+
+Optional envs you can add in the same `env` block:
+- `MCP_WORKSPACE_ROOT=C:\\Users\\Altheo\\repository\\ph-shoes-project`
+- `MCP_PROBE_WAIT_MAX_RETRIES=1`
+
+### Optional Auth Settings
+
+- `MCP_AUTH_LOGIN_DISCOVERY_ENABLED` (default: `true`, only for login endpoint hint extraction)
+- `MCP_PROBE_WAIT_MAX_RETRIES` (default: `1`, max: `10`)
+
+Behavior:
+- Automatic credential discovery is disabled (no env/`.env` token pickup).
+- If auth is required and credentials are not provided as tool inputs, recipe auth is `needs_user_input` and includes missing fields.
+- If route/auth requirements cannot be inferred, recipe auth is also `needs_user_input` so the coding agent asks for credentials explicitly.
+- If login endpoint is inferable from OpenAPI, recipe includes login hint (`auth.login.path`, `auth.login.body`) to help ask the user for proper creds.
+
+### Tools
+
+- `debug_ping`
+- `projects_discover`
+- `probe_diagnose`
+- `target_infer`
+- `recipe_generate`
+- `probe_status`
+- `probe_reset`
+- `probe_wait_hit`
+- `probe_actuate`
+
+### Start Service With `-javaagent`
+
+```text
+-javaagent:C:\Users\Altheo\repository\mcp-jvm-debugger\java-agent\target\mcp-jvm-probe-agent-0.1.0-all.jar=host=0.0.0.0;port=9191;include=com.nimbly.phshoesbackend.**;exclude=com.nimbly.mcpjvmdebugger.agent.**,**.config.**,**Test
+```
+
+Probe endpoints:
+1. `GET /__probe/status?key=<key>`
+2. `POST /__probe/reset` body: `{ "key": "<key>" }`
+
+### Recipe Output Template
+
+Configure default template via env:
+- `MCP_RECIPE_OUTPUT_TEMPLATE`
+
+Default template resource file:
+- `resources/default_recipe_output.template.txt`
+
+Template variables:
+- `target.*`: `target.path`, `target.class`, `target.method`, `target.line_hint`
+- `http.*`: `http.request`, `http.method`, `http.path`, `http.query`, `http.code`, `http.response`
+- `execution`: `execution_hit`, `api_outcome`, `repro_status`
+- `auth.*`: `auth.required`, `auth.status`, `auth.strategy`, `auth.next_action`, `auth.headers`, `auth.missing`, `auth.source`, `auth.login.path`, `auth.login.body`
+- `probe.*`: `probe.key`, `probe.hit`
+- `run.*`: `run.duration`, `run.notes`
+
+### Prompt Style (Natural)
+
+No need to include probe/api base in prompt if MCP env is already set.
+
+Examples:
+- `Give me reproducible recipe for Specification<CatalogShoe> hasKeyword(String keyword), line 132.`
+- `Give me reproducible recipe for JsonNode getOrInit(String userId), line 42 under class AccountSettingsServiceImpl in useraccounts.`

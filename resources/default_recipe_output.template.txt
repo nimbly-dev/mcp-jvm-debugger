@@ -1,0 +1,54 @@
+Path:
+{{target.path}}
+
+Request Details:
+{{http.request}}
+
+Execution Hit:
+{{execution_hit}}
+
+API Outcome:
+{{api_outcome}}
+
+Repro Status:
+{{repro_status}}
+
+Auth:
+{{auth.status}} ({{auth.strategy}})
+
+Auth Next Action:
+{{auth.next_action}}
+
+Auth Headers:
+{{auth.headers}}
+
+Auth Missing:
+{{auth.missing}}
+
+Auth Source:
+{{auth.source}}
+
+Auth Login Path:
+{{auth.login.path}}
+
+Auth Login Body:
+{{auth.login.body}}
+
+Hit:
+{{probe.hit}}
+
+Probe Key:
+{{probe.key}}
+
+HTTP Code:
+{{http.code}}
+
+Response Details:
+{{http.response}}
+
+Duration:
+{{run.duration}}
+
+Notes:
+{{run.notes}}
+

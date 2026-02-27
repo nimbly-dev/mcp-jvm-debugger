@@ -1,0 +1,409 @@
+#!/usr/bin/env node
+import * as path from "node:path";
+
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+
+import { loadConfigFromEnvAndArgs } from "./lib/config";
+import {
+  DEFAULT_RECIPE_OUTPUT_TEMPLATE,
+  renderRecipeTemplate,
+} from "./lib/recipe_template";
+import { buildRecipeTemplateModel } from "./models/recipe_output_model";
+import {
+  ProbeDiagnoseInputSchema,
+  ProbeActuateInputSchema,
+  ProbeResetInputSchema,
+  ProbeStatusInputSchema,
+  ProbeWaitHitInputSchema,
+  ProjectsDiscoverInputSchema,
+  RecipeGenerateInputSchema,
+  TargetInferInputSchema,
+} from "./models/inputs";
+import { clampInt } from "./lib/safety";
+import { discoverProjects } from "./tools/projects_discover";
+import { probeDiagnose } from "./tools/probe_diagnose";
+import { generateRecipe } from "./tools/recipe_generate";
+import { inferTargets } from "./tools/target_infer";
+import {
+  probeReset,
+  probeActuate,
+  probeStatus,
+  probeWaitHit,
+} from "./tools/probe";
+
+async function main() {
+  const cfg = loadConfigFromEnvAndArgs(process.argv);
+
+  const server = new McpServer({
+    name: "mcp-jvm-debugger",
+    version: "0.1.0",
+  });
+
+  // Cache discovery results; refreshable by calling projects_discover again.
+  // Important: keep startup fast; do discovery lazily (large workspaces can be slow to scan).
+  let discoveredProjects: Awaited<ReturnType<typeof discoverProjects>> = [];
+  let lastDiscoveryRootAbs = cfg.workspaceRootAbs;
+
+  async function ensureProjects(rootAbs: string): Promise<Awaited<ReturnType<typeof discoverProjects>>> {
+    if (discoveredProjects.length === 0 || lastDiscoveryRootAbs !== rootAbs) {
+      discoveredProjects = await discoverProjects(rootAbs, 100, 300);
+      lastDiscoveryRootAbs = rootAbs;
+    }
+    return discoveredProjects;
+  }
+
+  async function resolveProjectRoot(args: {
+    workspaceRoot?: string;
+    projectId?: string;
+    serviceHint?: string;
+  }): Promise<{ workspaceRootAbs: string; projectRootAbs: string }> {
+    const workspaceRootAbs = path.resolve(args.workspaceRoot ?? cfg.workspaceRootAbs);
+    const projects = await ensureProjects(workspaceRootAbs);
+    if (projects.length === 0) {
+      return { workspaceRootAbs, projectRootAbs: workspaceRootAbs };
+    }
+
+    if (args.projectId) {
+      const found = projects.find((p) => p.id === args.projectId);
+      if (found) return { workspaceRootAbs, projectRootAbs: found.rootAbs };
+    }
+
+    if (args.serviceHint) {
+      const needle = args.serviceHint.toLowerCase();
+      const found = projects.find((p) => p.rootAbs.toLowerCase().includes(needle));
+      if (found) return { workspaceRootAbs, projectRootAbs: found.rootAbs };
+    }
+
+    if (projects.length === 1) {
+      return { workspaceRootAbs, projectRootAbs: projects[0]!.rootAbs };
+    }
+
+    return { workspaceRootAbs, projectRootAbs: projects[0]!.rootAbs };
+  }
+
+  // Register at least one resource so Codex doesn't spam resources/list with "method not found".
+  server.registerResource(
+    "status",
+    "mcp-jvm-debugger://status",
+    { mimeType: "application/json", description: "Server status and defaults" },
+    async () => {
+      const payload = {
+        ok: true,
+        name: "mcp-jvm-debugger",
+        version: "0.1.0",
+        workspaceRoot: cfg.workspaceRootAbs,
+        probe: {
+          baseUrl: cfg.probeBaseUrl,
+          statusPath: cfg.probeStatusPath,
+          resetPath: cfg.probeResetPath,
+          actuatePath: cfg.probeActuatePath,
+          waitMaxRetriesDefault: cfg.probeWaitMaxRetries,
+        },
+        recipe: {
+          hasCustomTemplate: Boolean(cfg.recipeOutputTemplate),
+        },
+        auth: {
+          loginDiscoveryEnabled: cfg.authLoginDiscoveryEnabled,
+          credentialDiscovery: "disabled",
+        },
+        time: new Date().toISOString(),
+      };
+      return {
+        contents: [
+          {
+            uri: "mcp-jvm-debugger://status",
+            text: JSON.stringify(payload, null, 2),
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
+    "debug_ping",
+    {
+      description: "Sanity check: confirms the MCP server is reachable.",
+      inputSchema: {},
+    },
+    async () => {
+      const structuredContent = {
+        ok: true,
+        serverTime: new Date().toISOString(),
+        version: "0.1.0",
+      };
+      return {
+        content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }],
+        structuredContent,
+      };
+    },
+  );
+
+  server.registerTool(
+    "projects_discover",
+    {
+      description:
+        "Discover Maven/Gradle Java projects under the workspace root (pom.xml / build.gradle*) and infer probe include scope from Java package declarations.",
+      inputSchema: ProjectsDiscoverInputSchema,
+    },
+    async ({ workspaceRoot, maxProjects, maxJavaFilesPerProject }) => {
+      const rootAbs = path.resolve(workspaceRoot ?? cfg.workspaceRootAbs);
+      const limit = clampInt(maxProjects ?? 50, 1, 200);
+      const javaFileLimit = clampInt(maxJavaFilesPerProject ?? 300, 10, 2_000);
+      discoveredProjects = await discoverProjects(rootAbs, limit, javaFileLimit);
+      lastDiscoveryRootAbs = rootAbs;
+
+      const defaultProjectId =
+        discoveredProjects.length === 1 ? discoveredProjects.at(0)!.id : undefined;
+      const structuredContent = {
+        workspaceRoot: rootAbs,
+        maxJavaFilesPerProject: javaFileLimit,
+        defaultProjectId,
+        projects: discoveredProjects.map((p) => ({
+          id: p.id,
+          root: p.rootAbs,
+          build: p.build,
+          markers: p.markers,
+          probeScope: p.probeScope,
+        })),
+      };
+
+      const lines: string[] = [];
+      lines.push(`workspaceRoot=${rootAbs}`);
+      if (defaultProjectId) lines.push(`defaultProjectId=${defaultProjectId}`);
+      lines.push(`maxJavaFilesPerProject=${javaFileLimit}`);
+      lines.push("projects:");
+      for (const p of discoveredProjects) {
+        lines.push(`  - id=${p.id} build=${p.build} root=${p.rootAbs}`);
+        lines.push(
+          `    probeIncludeSuggested=${p.probeScope.suggestedInclude ?? "(none)"}`,
+        );
+      }
+
+      return {
+        content: [{ type: "text", text: lines.join("\n") }],
+        structuredContent,
+      };
+    },
+  );
+
+  server.registerTool(
+    "probe_diagnose",
+    {
+      description:
+        "Diagnose probe wiring quickly: reset/status reachability, key decoding health, and actionable next steps.",
+      inputSchema: ProbeDiagnoseInputSchema,
+    },
+    async ({ baseUrl, timeoutMs }) => {
+      const diagnoseArgs: Parameters<typeof probeDiagnose>[0] = {
+        baseUrl: baseUrl ?? cfg.probeBaseUrl,
+        statusPath: cfg.probeStatusPath,
+        resetPath: cfg.probeResetPath,
+        outputTemplate: cfg.recipeOutputTemplate,
+      };
+      if (typeof timeoutMs === "number") diagnoseArgs.timeoutMs = timeoutMs;
+      return await probeDiagnose(diagnoseArgs);
+    },
+  );
+
+  server.registerTool(
+    "target_infer",
+    {
+      description:
+        "Infer likely runtime probe keys (fully.qualified.Class#method) from class/method/line hints in project code.",
+      inputSchema: TargetInferInputSchema,
+    },
+    async ({ classHint, methodHint, lineHint, serviceHint, projectId, workspaceRoot, maxCandidates }) => {
+      const resolveArgs: Parameters<typeof resolveProjectRoot>[0] = {};
+      if (workspaceRoot) resolveArgs.workspaceRoot = workspaceRoot;
+      if (projectId) resolveArgs.projectId = projectId;
+      if (serviceHint) resolveArgs.serviceHint = serviceHint;
+      const resolved = await resolveProjectRoot(resolveArgs);
+
+      const inferArgs: Parameters<typeof inferTargets>[0] = {
+        rootAbs: resolved.projectRootAbs,
+        maxCandidates: clampInt(maxCandidates ?? 8, 1, 20),
+      };
+      if (classHint) inferArgs.classHint = classHint;
+      if (methodHint) inferArgs.methodHint = methodHint;
+      if (typeof lineHint === "number") inferArgs.lineHint = lineHint;
+      const inferred = await inferTargets(inferArgs);
+
+      const structuredContent = {
+        workspaceRoot: resolved.workspaceRootAbs,
+        projectRoot: resolved.projectRootAbs,
+        hints: { classHint, methodHint, lineHint, serviceHint, projectId },
+        scannedJavaFiles: inferred.scannedJavaFiles,
+        candidates: inferred.candidates.map((c) => ({
+          ...c,
+          file: path.relative(resolved.workspaceRootAbs, c.file) || c.file,
+        })),
+      };
+      return {
+        content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }],
+        structuredContent,
+      };
+    },
+  );
+
+  server.registerTool(
+    "recipe_generate",
+    {
+      description:
+        "Generate a reproducible request recipe for hitting a target method, inferred from code hints and optional OpenAPI files. Includes auth/login hints when available.",
+      inputSchema: RecipeGenerateInputSchema,
+    },
+    async ({
+      classHint,
+      methodHint,
+      lineHint,
+      serviceHint,
+      projectId,
+      workspaceRoot,
+      authToken,
+      authUsername,
+      authPassword,
+      outputTemplate,
+    }) => {
+      const resolveArgs: Parameters<typeof resolveProjectRoot>[0] = {};
+      if (workspaceRoot) resolveArgs.workspaceRoot = workspaceRoot;
+      if (projectId) resolveArgs.projectId = projectId;
+      if (serviceHint) resolveArgs.serviceHint = serviceHint;
+      const resolved = await resolveProjectRoot(resolveArgs);
+
+      const generateArgs: Parameters<typeof generateRecipe>[0] = {
+        rootAbs: resolved.projectRootAbs,
+        workspaceRootAbs: resolved.workspaceRootAbs,
+        classHint,
+        methodHint,
+        authLoginDiscoveryEnabled: cfg.authLoginDiscoveryEnabled,
+      };
+      if (typeof lineHint === "number") generateArgs.lineHint = lineHint;
+      if (authToken) generateArgs.authToken = authToken;
+      if (authUsername) generateArgs.authUsername = authUsername;
+      if (authPassword) generateArgs.authPassword = authPassword;
+      const generated = await generateRecipe(generateArgs);
+      const modelArgs: Parameters<typeof buildRecipeTemplateModel>[0] = {
+        classHint,
+        methodHint,
+        generated,
+      };
+      if (typeof lineHint === "number") modelArgs.lineHint = lineHint;
+      const model = buildRecipeTemplateModel(modelArgs);
+
+      const template = outputTemplate ?? cfg.recipeOutputTemplate ?? DEFAULT_RECIPE_OUTPUT_TEMPLATE;
+      const rendered = renderRecipeTemplate(template, model);
+
+      const structuredContent = {
+        workspaceRoot: resolved.workspaceRootAbs,
+        projectRoot: resolved.projectRootAbs,
+        hints: { classHint, methodHint, lineHint, serviceHint, projectId },
+        inferredTarget: generated.inferredTarget
+          ? {
+              ...generated.inferredTarget,
+              file: path.relative(resolved.workspaceRootAbs, generated.inferredTarget.file),
+            }
+          : undefined,
+        requestCandidates: generated.requestCandidates,
+        auth: generated.auth,
+        notes: generated.notes,
+        rendered,
+      };
+      return {
+        content: [{ type: "text", text: rendered }],
+        structuredContent,
+      };
+    },
+  );
+
+  server.registerTool(
+    "probe_actuate",
+    {
+      description:
+        "Dynamically arm/disarm runtime actuation without JVM restart. Default use: mode=observe (disarm).",
+      inputSchema: ProbeActuateInputSchema,
+    },
+    async ({ baseUrl, mode, actuatorId, targetKey, returnBoolean, timeoutMs }) => {
+      const args: Parameters<typeof probeActuate>[0] = {
+        baseUrl: baseUrl ?? cfg.probeBaseUrl,
+        actuatePath: cfg.probeActuatePath,
+        outputTemplate: cfg.recipeOutputTemplate,
+      };
+      if (typeof mode === "string") args.mode = mode;
+      if (typeof actuatorId === "string") args.actuatorId = actuatorId;
+      if (typeof targetKey === "string") args.targetKey = targetKey;
+      if (typeof returnBoolean === "boolean") args.returnBoolean = returnBoolean;
+      if (typeof timeoutMs === "number") args.timeoutMs = timeoutMs;
+      return await probeActuate(args);
+    },
+  );
+
+  server.registerTool(
+    "probe_status",
+    {
+      description:
+        "Query the app probe status for a key (machine-verifiable code-path hit signal), usually fully.qualified.Class#method.",
+      inputSchema: ProbeStatusInputSchema,
+    },
+    async ({ key, baseUrl, timeoutMs }) => {
+      const args: Parameters<typeof probeStatus>[0] = {
+        key,
+        baseUrl: baseUrl ?? cfg.probeBaseUrl,
+        statusPath: cfg.probeStatusPath,
+        outputTemplate: cfg.recipeOutputTemplate,
+      };
+      if (typeof timeoutMs !== "undefined") args.timeoutMs = timeoutMs;
+      return await probeStatus(args);
+    },
+  );
+
+  server.registerTool(
+    "probe_reset",
+    {
+      description: "Reset the app probe counter/state for a key.",
+      inputSchema: ProbeResetInputSchema,
+    },
+    async ({ key, baseUrl, timeoutMs }) => {
+      const args: Parameters<typeof probeReset>[0] = {
+        key,
+        baseUrl: baseUrl ?? cfg.probeBaseUrl,
+        resetPath: cfg.probeResetPath,
+        outputTemplate: cfg.recipeOutputTemplate,
+      };
+      if (typeof timeoutMs !== "undefined") args.timeoutMs = timeoutMs;
+      return await probeReset(args);
+    },
+  );
+
+  server.registerTool(
+    "probe_wait_hit",
+    {
+      description:
+        "Poll probe_status until an inline hit is observed (hitCount increases after inline start). Stale prior hits are not counted. Supports configurable retries.",
+      inputSchema: ProbeWaitHitInputSchema,
+    },
+    async ({ key, baseUrl, timeoutMs, pollIntervalMs, maxRetries }) => {
+      const args: Parameters<typeof probeWaitHit>[0] = {
+        key,
+        baseUrl: baseUrl ?? cfg.probeBaseUrl,
+        statusPath: cfg.probeStatusPath,
+        outputTemplate: cfg.recipeOutputTemplate,
+      };
+      if (typeof timeoutMs !== "undefined") args.timeoutMs = timeoutMs;
+      if (typeof pollIntervalMs !== "undefined") args.pollIntervalMs = pollIntervalMs;
+      args.maxRetries = typeof maxRetries === "number" ? maxRetries : cfg.probeWaitMaxRetries;
+      return await probeWaitHit(args);
+    },
+  );
+
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error(
+    `mcp-jvm-debugger 0.1.0 running (stdio). workspaceRoot=${cfg.workspaceRootAbs} probeBaseUrl=${cfg.probeBaseUrl}`,
+  );
+}
+
+main().catch((err) => {
+  console.error("Server error:", err);
+  process.exit(1);
+});

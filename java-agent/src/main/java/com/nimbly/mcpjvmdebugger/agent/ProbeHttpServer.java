@@ -1,0 +1,203 @@
+package com.nimbly.mcpjvmdebugger.agent;
+
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+import com.sun.net.httpserver.HttpServer;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
+
+final class ProbeHttpServer {
+  private final HttpServer server;
+
+  private ProbeHttpServer(HttpServer server) {
+    this.server = server;
+  }
+
+  static ProbeHttpServer start(String host, int port) throws IOException {
+    HttpServer server = HttpServer.create(new InetSocketAddress(host, port), 16);
+    server.createContext("/__probe/status", new StatusHandler());
+    server.createContext("/__probe/reset", new ResetHandler());
+    server.createContext("/__probe/actuate", new ActuateHandler());
+    server.setExecutor(null);
+    server.start();
+    return new ProbeHttpServer(server);
+  }
+
+  HttpServer rawServer() {
+    return server;
+  }
+
+  private static final class StatusHandler implements HttpHandler {
+    @Override
+    public void handle(HttpExchange exchange) throws IOException {
+      if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+        writeJson(exchange, 405, "{\"error\":\"method_not_allowed\"}");
+        return;
+      }
+      String key = queryParam(exchange.getRequestURI(), "key");
+      if (key == null || key.isEmpty()) {
+        writeJson(exchange, 400, "{\"error\":\"missing_key\"}");
+        return;
+      }
+      long hitCount = ProbeRuntime.getCount(key);
+      long lastHitEpochMs = ProbeRuntime.getLastHitEpochMs(key);
+      String mode = ProbeRuntime.getMode();
+      String actuatorId = ProbeRuntime.getActuatorId();
+      String actuateTargetKey = ProbeRuntime.getActuateTargetKey();
+      boolean actuateReturnBoolean = ProbeRuntime.getActuateReturnBoolean();
+      String body =
+          "{"
+              + "\"key\":\"" + esc(key) + "\","
+              + "\"hitCount\":" + hitCount + ","
+              + "\"lastHitEpochMs\":" + lastHitEpochMs + ","
+              + "\"mode\":\"" + esc(mode) + "\","
+              + "\"actuatorId\":\"" + esc(actuatorId) + "\","
+              + "\"actuateTargetKey\":\"" + esc(actuateTargetKey) + "\","
+              + "\"actuateReturnBoolean\":" + actuateReturnBoolean
+              + "}";
+      writeJson(exchange, 200, body);
+    }
+  }
+
+  private static final class ResetHandler implements HttpHandler {
+    @Override
+    public void handle(HttpExchange exchange) throws IOException {
+      if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+        writeJson(exchange, 405, "{\"error\":\"method_not_allowed\"}");
+        return;
+      }
+      String key = queryParam(exchange.getRequestURI(), "key");
+      if (key == null || key.isEmpty()) {
+        key = keyFromJsonBody(exchange.getRequestBody());
+      }
+      if (key == null || key.isEmpty()) {
+        writeJson(exchange, 400, "{\"error\":\"missing_key\"}");
+        return;
+      }
+      ProbeRuntime.reset(key);
+      String body = "{\"ok\":true,\"key\":\"" + esc(key) + "\"}";
+      writeJson(exchange, 200, body);
+    }
+  }
+
+  private static final class ActuateHandler implements HttpHandler {
+    @Override
+    public void handle(HttpExchange exchange) throws IOException {
+      if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+        writeJson(exchange, 405, "{\"error\":\"method_not_allowed\"}");
+        return;
+      }
+      String body = readBodyUtf8(exchange.getRequestBody());
+      String mode = jsonStringField(body, "mode");
+      String actuatorId = jsonStringField(body, "actuatorId");
+      String targetKey = jsonStringField(body, "targetKey");
+      Boolean returnBoolean = jsonBooleanField(body, "returnBoolean");
+
+      String effectiveMode = (mode == null || mode.isBlank()) ? ProbeRuntime.getMode() : mode;
+      String effectiveActuatorId =
+          actuatorId == null ? ProbeRuntime.getActuatorId() : actuatorId;
+      String effectiveTargetKey =
+          targetKey == null ? ProbeRuntime.getActuateTargetKey() : targetKey;
+      boolean effectiveReturnBoolean =
+          returnBoolean == null ? ProbeRuntime.getActuateReturnBoolean() : returnBoolean;
+
+      ProbeRuntime.configure(
+          effectiveMode,
+          effectiveActuatorId,
+          effectiveTargetKey,
+          effectiveReturnBoolean
+      );
+
+      String response =
+          "{"
+              + "\"ok\":true,"
+              + "\"mode\":\"" + esc(ProbeRuntime.getMode()) + "\","
+              + "\"actuatorId\":\"" + esc(ProbeRuntime.getActuatorId()) + "\","
+              + "\"targetKey\":\"" + esc(ProbeRuntime.getActuateTargetKey()) + "\","
+              + "\"returnBoolean\":" + ProbeRuntime.getActuateReturnBoolean()
+              + "}";
+      writeJson(exchange, 200, response);
+    }
+  }
+
+  private static String queryParam(URI uri, String key) {
+    String q = uri.getRawQuery();
+    if (q == null || q.isEmpty()) return null;
+    Map<String, String> m = parseQuery(q);
+    return m.get(key);
+  }
+
+  private static Map<String, String> parseQuery(String q) {
+    Map<String, String> out = new HashMap<>();
+    String[] parts = q.split("&");
+    for (String p : parts) {
+      int eq = p.indexOf('=');
+      if (eq <= 0) continue;
+      String k = urlDecode(p.substring(0, eq));
+      String v = urlDecode(p.substring(eq + 1));
+      out.put(k, v);
+    }
+    return out;
+  }
+
+  private static String keyFromJsonBody(InputStream body) throws IOException {
+    String s = readBodyUtf8(body);
+    return jsonStringField(s, "key");
+  }
+
+  private static String readBodyUtf8(InputStream body) throws IOException {
+    byte[] bytes = body.readAllBytes();
+    if (bytes.length == 0) return "";
+    return new String(bytes, StandardCharsets.UTF_8);
+  }
+
+  private static String jsonStringField(String json, String field) {
+    if (json == null || json.isBlank() || field == null || field.isBlank()) return null;
+    int k = json.indexOf("\"" + field + "\"");
+    if (k < 0) return null;
+    int c = json.indexOf(':', k);
+    if (c < 0) return null;
+    int q1 = json.indexOf('"', c);
+    if (q1 < 0) return null;
+    int q2 = json.indexOf('"', q1 + 1);
+    if (q2 < 0) return null;
+    return json.substring(q1 + 1, q2);
+  }
+
+  private static Boolean jsonBooleanField(String json, String field) {
+    if (json == null || json.isBlank() || field == null || field.isBlank()) return null;
+    int k = json.indexOf("\"" + field + "\"");
+    if (k < 0) return null;
+    int c = json.indexOf(':', k);
+    if (c < 0) return null;
+    String tail = json.substring(c + 1).trim();
+    if (tail.startsWith("true")) return Boolean.TRUE;
+    if (tail.startsWith("false")) return Boolean.FALSE;
+    return null;
+  }
+
+  private static String urlDecode(String s) {
+    return URLDecoder.decode(s, StandardCharsets.UTF_8);
+  }
+
+  private static String esc(String s) {
+    return s.replace("\\", "\\\\").replace("\"", "\\\"");
+  }
+
+  private static void writeJson(HttpExchange exchange, int statusCode, String body) throws IOException {
+    byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+    exchange.getResponseHeaders().set("content-type", "application/json; charset=utf-8");
+    exchange.sendResponseHeaders(statusCode, bytes.length);
+    try (OutputStream os = exchange.getResponseBody()) {
+      os.write(bytes);
+    }
+  }
+}
