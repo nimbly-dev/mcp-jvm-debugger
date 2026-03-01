@@ -6,7 +6,6 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 
 import { loadConfigFromEnvAndArgs } from "./lib/config";
 import {
-  DEFAULT_RECIPE_OUTPUT_TEMPLATE,
   renderRecipeTemplate,
 } from "./lib/recipe_template";
 import { buildRecipeTemplateModel } from "./models/recipe_output_model";
@@ -199,7 +198,6 @@ async function main() {
         baseUrl: baseUrl ?? cfg.probeBaseUrl,
         statusPath: cfg.probeStatusPath,
         resetPath: cfg.probeResetPath,
-        outputTemplate: cfg.recipeOutputTemplate,
       };
       if (typeof timeoutMs === "number") diagnoseArgs.timeoutMs = timeoutMs;
       return await probeDiagnose(diagnoseArgs);
@@ -257,6 +255,7 @@ async function main() {
       classHint,
       methodHint,
       lineHint,
+      mode,
       serviceHint,
       projectId,
       workspaceRoot,
@@ -276,6 +275,7 @@ async function main() {
         workspaceRootAbs: resolved.workspaceRootAbs,
         classHint,
         methodHint,
+        ...(mode ? { mode } : {}),
         authLoginDiscoveryEnabled: cfg.authLoginDiscoveryEnabled,
       };
       if (typeof lineHint === "number") generateArgs.lineHint = lineHint;
@@ -290,9 +290,12 @@ async function main() {
       };
       if (typeof lineHint === "number") modelArgs.lineHint = lineHint;
       const model = buildRecipeTemplateModel(modelArgs);
-
-      const template = outputTemplate ?? cfg.recipeOutputTemplate ?? DEFAULT_RECIPE_OUTPUT_TEMPLATE;
-      const rendered = renderRecipeTemplate(template, model);
+      const hasExplicitTemplate =
+        typeof outputTemplate === "string" && outputTemplate.trim().length > 0;
+      const template = hasExplicitTemplate ? outputTemplate : undefined;
+      const rendered = template
+        ? renderRecipeTemplate(template, model)
+        : undefined;
 
       const structuredContent = {
         workspaceRoot: resolved.workspaceRootAbs,
@@ -305,12 +308,33 @@ async function main() {
             }
           : undefined,
         requestCandidates: generated.requestCandidates,
+        executionPlan: generated.executionPlan,
+        resultType: generated.resultType,
+        status: generated.status,
+        ...(generated.nextAction ? { nextAction: generated.nextAction } : {}),
         auth: generated.auth,
         notes: generated.notes,
-        rendered,
+        ...(rendered ? { rendered } : {}),
+      };
+      const internalContent = {
+        resultType: generated.resultType,
+        status: generated.status,
+        ...(generated.nextAction ? { nextAction: generated.nextAction } : {}),
+        mode: generated.executionPlan.mode,
+        modeReason: generated.executionPlan.modeReason,
+        inferredTarget: structuredContent.inferredTarget,
+        requestCandidates: generated.requestCandidates,
+        executionPlan: generated.executionPlan,
+        auth: generated.auth,
+        notes: generated.notes,
       };
       return {
-        content: [{ type: "text", text: rendered }],
+        content: [
+          {
+            type: "text",
+            text: rendered ?? JSON.stringify(internalContent, null, 2),
+          },
+        ],
         structuredContent,
       };
     },
@@ -320,14 +344,13 @@ async function main() {
     "probe_actuate",
     {
       description:
-        "Dynamically arm/disarm runtime actuation without JVM restart. Default use: mode=observe (disarm).",
+        "Dynamically arm/disarm line-branch actuation without JVM restart. In actuate mode, targetKey must be fully.qualified.Class#method:line and returnBoolean controls branch decision (true=taken, false=fallthrough). Use mode=observe to disarm.",
       inputSchema: ProbeActuateInputSchema,
     },
     async ({ baseUrl, mode, actuatorId, targetKey, returnBoolean, timeoutMs }) => {
       const args: Parameters<typeof probeActuate>[0] = {
         baseUrl: baseUrl ?? cfg.probeBaseUrl,
         actuatePath: cfg.probeActuatePath,
-        outputTemplate: cfg.recipeOutputTemplate,
       };
       if (typeof mode === "string") args.mode = mode;
       if (typeof actuatorId === "string") args.actuatorId = actuatorId;
@@ -342,16 +365,16 @@ async function main() {
     "probe_status",
     {
       description:
-        "Query the app probe status for a key (machine-verifiable code-path hit signal), usually fully.qualified.Class#method.",
+        "Query line-level probe status for a key (fully.qualified.Class#method:line). Method-only keys are rejected in strict line mode.",
       inputSchema: ProbeStatusInputSchema,
     },
-    async ({ key, baseUrl, timeoutMs }) => {
+    async ({ key, lineHint, baseUrl, timeoutMs }) => {
       const args: Parameters<typeof probeStatus>[0] = {
         key,
         baseUrl: baseUrl ?? cfg.probeBaseUrl,
         statusPath: cfg.probeStatusPath,
-        outputTemplate: cfg.recipeOutputTemplate,
       };
+      if (typeof lineHint === "number") args.lineHint = lineHint;
       if (typeof timeoutMs !== "undefined") args.timeoutMs = timeoutMs;
       return await probeStatus(args);
     },
@@ -360,16 +383,17 @@ async function main() {
   server.registerTool(
     "probe_reset",
     {
-      description: "Reset the app probe counter/state for a key.",
+      description:
+        "Reset probe counter/state for a line-level key (fully.qualified.Class#method:line). Method-only keys are rejected in strict line mode.",
       inputSchema: ProbeResetInputSchema,
     },
-    async ({ key, baseUrl, timeoutMs }) => {
+    async ({ key, lineHint, baseUrl, timeoutMs }) => {
       const args: Parameters<typeof probeReset>[0] = {
         key,
         baseUrl: baseUrl ?? cfg.probeBaseUrl,
         resetPath: cfg.probeResetPath,
-        outputTemplate: cfg.recipeOutputTemplate,
       };
+      if (typeof lineHint === "number") args.lineHint = lineHint;
       if (typeof timeoutMs !== "undefined") args.timeoutMs = timeoutMs;
       return await probeReset(args);
     },
@@ -379,16 +403,16 @@ async function main() {
     "probe_wait_hit",
     {
       description:
-        "Poll probe_status until an inline hit is observed (hitCount increases after inline start). Stale prior hits are not counted. Supports configurable retries.",
+        "Poll probe_status until an inline line hit is observed for key fully.qualified.Class#method:line. Method-only keys are rejected in strict line mode.",
       inputSchema: ProbeWaitHitInputSchema,
     },
-    async ({ key, baseUrl, timeoutMs, pollIntervalMs, maxRetries }) => {
+    async ({ key, lineHint, baseUrl, timeoutMs, pollIntervalMs, maxRetries }) => {
       const args: Parameters<typeof probeWaitHit>[0] = {
         key,
         baseUrl: baseUrl ?? cfg.probeBaseUrl,
         statusPath: cfg.probeStatusPath,
-        outputTemplate: cfg.recipeOutputTemplate,
       };
+      if (typeof lineHint === "number") args.lineHint = lineHint;
       if (typeof timeoutMs !== "undefined") args.timeoutMs = timeoutMs;
       if (typeof pollIntervalMs !== "undefined") args.pollIntervalMs = pollIntervalMs;
       args.maxRetries = typeof maxRetries === "number" ? maxRetries : cfg.probeWaitMaxRetries;

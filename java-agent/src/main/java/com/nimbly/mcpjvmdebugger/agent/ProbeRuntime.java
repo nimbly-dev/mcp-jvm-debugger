@@ -43,6 +43,12 @@ public final class ProbeRuntime {
     hit(dottedClassName + "#" + methodName);
   }
 
+  public static void hitLineByClassMethod(String dottedClassName, String methodName, int lineNumber) {
+    if (dottedClassName == null || methodName == null) return;
+    if (lineNumber <= 0) return;
+    hit(dottedClassName + "#" + methodName + ":" + lineNumber);
+  }
+
   static long getCount(String key) {
     AtomicLong v = COUNTS.get(key);
     return v == null ? 0L : v.get();
@@ -69,12 +75,21 @@ public final class ProbeRuntime {
     return ACTUATE_RETURN_BOOLEAN;
   }
 
-  public static boolean shouldActuateBooleanReturn(String dottedClassName, String methodName) {
-    if (!"actuate".equals(MODE)) return false;
-    if (ACTUATE_TARGET_KEY == null || ACTUATE_TARGET_KEY.isBlank()) return false;
-    if (dottedClassName == null || dottedClassName.isBlank() || methodName == null || methodName.isBlank()) return false;
-    String key = dottedClassName + "#" + methodName;
-    return ACTUATE_TARGET_KEY.equals(key);
+  public static int branchDecisionByClassMethodLine(
+      String dottedClassName,
+      String methodName,
+      int lineNumber
+  ) {
+    if (!"actuate".equals(MODE)) return -1;
+    if (ACTUATE_TARGET_KEY == null || ACTUATE_TARGET_KEY.isBlank()) return -1;
+    if (dottedClassName == null || dottedClassName.isBlank() || methodName == null || methodName.isBlank()) return -1;
+    if (lineNumber <= 0) return -1;
+
+    String key = dottedClassName + "#" + methodName + ":" + lineNumber;
+    if (!ACTUATE_TARGET_KEY.equals(key)) return -1;
+
+    // 1 = force jump/taken, 0 = force fallthrough/not-taken
+    return ACTUATE_RETURN_BOOLEAN ? 1 : 0;
   }
 
   static void reset(String key) {

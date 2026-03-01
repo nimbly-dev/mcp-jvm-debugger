@@ -6,11 +6,22 @@ export type InferredTarget = {
   className?: string;
   methodName?: string;
   line?: number;
+  signature?: string;
+  returnsBoolean?: boolean;
   fqcn?: string;
   key?: string;
   confidence: number;
   reasons: string[];
 };
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function inferReturnsBoolean(signature: string, methodName: string): boolean {
+  const rx = new RegExp(`\\b(?:boolean|Boolean|java\\.lang\\.Boolean)\\s+${escapeRegExp(methodName)}\\s*\\(`);
+  return rx.test(signature);
+}
 
 function normalize(s?: string): string {
   return (s ?? "").trim().toLowerCase();
@@ -33,14 +44,18 @@ function scoreCandidate(args: {
   const fileBase = path.basename(args.filePath, ".java").toLowerCase();
   const className = normalize(args.className);
   const methodName = normalize(args.methodName);
+  let classMatched = false;
+  let methodMatched = false;
 
   if (classHint) {
     if (className === classHint) {
       score += 45;
       reasons.push("class exact match");
+      classMatched = true;
     } else if (className.includes(classHint) || fileBase.includes(classHint)) {
       score += 25;
       reasons.push("class partial match");
+      classMatched = true;
     }
   }
 
@@ -48,10 +63,18 @@ function scoreCandidate(args: {
     if (methodName === methodHint) {
       score += 40;
       reasons.push("method exact match");
+      methodMatched = true;
     } else if (methodName.includes(methodHint)) {
       score += 22;
       reasons.push("method partial match");
+      methodMatched = true;
     }
+  }
+
+  // Guardrail: when textual hints are provided, do not return line-only matches
+  // from unrelated classes/methods.
+  if ((classHint || methodHint) && !classMatched && !methodMatched) {
+    return { score: 0, reasons: [] };
   }
 
   if (typeof args.lineHint === "number" && typeof args.methodLine === "number") {
@@ -107,6 +130,8 @@ export async function inferTargets(args: {
       const candidate: InferredTarget = {
         file: f.fileAbs,
         methodName: m.name,
+        signature: m.signature,
+        returnsBoolean: inferReturnsBoolean(m.signature, m.name),
         confidence: Math.min(100, scored.score),
         reasons: scored.reasons,
       };

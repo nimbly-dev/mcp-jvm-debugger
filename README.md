@@ -118,12 +118,18 @@ Default template resource file:
 - `resources/default_recipe_output.template.txt`
 
 Template variables:
+- `recipe.*`: `recipe.mode`, `recipe.mode_reason`, `recipe.steps`, `recipe.natural_steps`, `recipe.actuated_steps`
 - `target.*`: `target.path`, `target.class`, `target.method`, `target.line_hint`
 - `http.*`: `http.request`, `http.method`, `http.path`, `http.query`, `http.code`, `http.response`
 - `execution`: `execution_hit`, `api_outcome`, `repro_status`
 - `auth.*`: `auth.required`, `auth.status`, `auth.strategy`, `auth.next_action`, `auth.headers`, `auth.missing`, `auth.source`, `auth.login.path`, `auth.login.body`
 - `probe.*`: `probe.key`, `probe.hit`
 - `run.*`: `run.duration`, `run.notes`
+
+Recipe behavior:
+- Default output is natural, step-by-step repro when a request path is inferable.
+- `outputTemplate` only changes rendering; recipe mode/steps are generated separately.
+- If natural repro is unavailable, output switches to `mode=actuated` with reason + enable/verify/cleanup steps.
 
 ### Prompt Style (Natural)
 

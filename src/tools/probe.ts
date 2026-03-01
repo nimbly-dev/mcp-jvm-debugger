@@ -21,6 +21,26 @@ import {
 
 const LAST_RESET_EPOCH_BY_KEY = new Map<string, number>();
 
+function isLineKey(key: string): boolean {
+  return /#[^:]+:\d+$/.test(key);
+}
+
+function resolveProbeKey(key: string, lineHint?: number): string {
+  if (typeof lineHint !== "number") return key;
+  if (isLineKey(key)) return key;
+  return `${key}:${lineHint}`;
+}
+
+function classifyExecutionHitStrictLine(key: string, hit: boolean): string {
+  if (!isLineKey(key)) return "not_hit";
+  return hit ? "line_hit" : "not_hit";
+}
+
+function classifyReproStatusStrictLine(key: string, hit: boolean): string {
+  if (!isLineKey(key)) return "line_key_required";
+  return hit ? "line_reproduced" : "line_not_reproduced";
+}
+
 function toText(value: unknown, fallback = "-"): string {
   if (value === null || typeof value === "undefined") return fallback;
   if (typeof value === "string") return value;
@@ -32,23 +52,65 @@ function toText(value: unknown, fallback = "-"): string {
   }
 }
 
+function parseHttpRequestLine(raw: string): { method: string; url: string } {
+  const trimmed = raw.trim();
+  const firstSpace = trimmed.indexOf(" ");
+  if (firstSpace <= 0) {
+    return { method: "UNKNOWN", url: trimmed };
+  }
+  const method = trimmed.slice(0, firstSpace).trim().toUpperCase();
+  const rest = trimmed.slice(firstSpace + 1).trim();
+  const end = rest.indexOf(" ");
+  const url = end > 0 ? rest.slice(0, end).trim() : rest;
+  return { method, url };
+}
+
+function synthWarningForMode(modeUsed: string | undefined): string | undefined {
+  if (modeUsed !== "actuate") return undefined;
+  return "Actuation mode is synthetic. Validate final reproducibility in observe mode for natural behavior.";
+}
+
 function renderProbeRecipe(args: {
   targetPath: string;
   probeKey: string;
   httpRequest: string;
+  requestMethod?: string;
+  requestUrl?: string;
+  requestHeaders?: Record<string, string>;
+  requestBody?: unknown;
   executionHit: string;
   apiOutcome: string;
   reproStatus: string;
   probeHit: string;
   httpCode: number | string;
   httpResponse: unknown;
+  runtimeMode?: string | undefined;
+  syntheticWarning?: string | undefined;
   runDuration: string;
   runNotes?: string;
   authStatus?: string;
   authStrategy?: string;
   outputTemplate?: string | undefined;
 }): string {
+  const parsedRequest = parseHttpRequestLine(args.httpRequest);
+  const requestMethod = args.requestMethod ?? parsedRequest.method;
+  const requestUrl = args.requestUrl ?? parsedRequest.url;
+  const runtimeMode = args.runtimeMode ?? "unknown";
+  const syntheticWarning = args.syntheticWarning ?? synthWarningForMode(runtimeMode);
+
+  const recipeSteps = [
+    "1. [execute] Run probe utility call",
+    `   ${args.httpRequest}`,
+    "2. [verify] Inspect probe result",
+    `   ${args.probeHit}`,
+  ].join("\n");
   const model: RecipeTemplateModel = {
+    "recipe.mode": "probe",
+    "recipe.mode_reason":
+      "Direct probe tool execution output; no request-inference planning was performed.",
+    "recipe.steps": recipeSteps,
+    "recipe.natural_steps": recipeSteps,
+    "recipe.actuated_steps": "No steps available.",
     "target.path": args.targetPath,
     "probe.key": args.probeKey,
     "http.request": args.httpRequest,
@@ -67,14 +129,54 @@ function renderProbeRecipe(args: {
     "http.code": toText(args.httpCode),
     "http.response": toText(args.httpResponse),
     "run.duration": args.runDuration,
-    "run.notes": args.runNotes ?? "-",
+    "run.notes":
+      [args.runNotes ?? "-", `runtime.mode=${runtimeMode}`, syntheticWarning ? `warning=${syntheticWarning}` : ""]
+        .filter((s) => s.length > 0)
+        .join(" | "),
   };
+  // Avoid recursive "recipe of a probe call" loops in agent workflows:
+  // emit compact JSON by default; only render templates when explicitly requested.
+  if (!args.outputTemplate || args.outputTemplate.trim().length === 0) {
+    return JSON.stringify(
+      {
+        mode: "probe",
+        request: args.httpRequest,
+        requestDetails: {
+          method: requestMethod,
+          url: requestUrl,
+          headers: args.requestHeaders ?? {},
+          body: typeof args.requestBody === "undefined" ? null : args.requestBody,
+        },
+        responseDetails: {
+          code: args.httpCode,
+          body: args.httpResponse,
+        },
+        targetKey: args.probeKey,
+        executionHit: args.executionHit,
+        apiOutcome: args.apiOutcome,
+        reproStatus: args.reproStatus,
+        probeHit: args.probeHit,
+        runtime: {
+          mode: runtimeMode,
+          synthetic: runtimeMode === "actuate",
+          warning: syntheticWarning ?? null,
+        },
+        httpCode: args.httpCode,
+        httpResponse: args.httpResponse,
+        runDuration: args.runDuration,
+        notes: args.runNotes ?? "-",
+      },
+      null,
+      2,
+    );
+  }
   const template = args.outputTemplate ?? DEFAULT_RECIPE_OUTPUT_TEMPLATE;
   return renderRecipeTemplate(template, model);
 }
 
 export async function probeStatus(args: {
   key: string;
+  lineHint?: number;
   baseUrl: string;
   statusPath: string;
   outputTemplate?: string | undefined;
@@ -86,8 +188,36 @@ export async function probeStatus(args: {
     HARD_MAX_PROBE_TIMEOUT_MS,
   );
 
+  const resolvedKey = resolveProbeKey(args.key, args.lineHint);
+  if (!isLineKey(resolvedKey)) {
+    const structuredContent: Record<string, unknown> = {
+      request: { key: args.key, resolvedKey, lineHint: args.lineHint, timeoutMs },
+      result: {
+        hit: false,
+        reason: "line_key_required",
+      },
+    };
+    const text = renderProbeRecipe({
+      targetPath: resolvedKey,
+      probeKey: resolvedKey,
+      httpRequest: `GET ${joinUrl(args.baseUrl, args.statusPath)}?key=${encodeURIComponent(resolvedKey)}`,
+      requestMethod: "GET",
+      requestUrl: `${joinUrl(args.baseUrl, args.statusPath)}?key=${encodeURIComponent(resolvedKey)}`,
+      executionHit: "not_hit",
+      apiOutcome: "error",
+      reproStatus: "line_key_required",
+      probeHit: "line probe key required (Class#method:<line>); method-only checks disabled",
+      httpCode: 400,
+      httpResponse: structuredContent.result,
+      runDuration: "Not measured",
+      runNotes: "probe_status strict line mode",
+      outputTemplate: args.outputTemplate,
+    });
+    return { content: [{ type: "text", text }], structuredContent };
+  }
+
   const url = new URL(joinUrl(args.baseUrl, args.statusPath));
-  url.searchParams.set("key", args.key);
+  url.searchParams.set("key", resolvedKey);
 
   let res;
   try {
@@ -97,17 +227,19 @@ export async function probeStatus(args: {
   }
 
   const structuredContent: Record<string, unknown> = {
-    request: { key: args.key, url: url.toString(), timeoutMs },
+    request: { key: args.key, resolvedKey, lineHint: args.lineHint, url: url.toString(), timeoutMs },
     response: { status: res.status, json: res.json, text: res.json ? undefined : res.text },
   };
 
   const json = res.json as Record<string, unknown> | null;
   const hitCount = typeof json?.hitCount === "number" ? json.hitCount : 0;
   const text = renderProbeRecipe({
-    targetPath: args.key,
-    probeKey: args.key,
+    targetPath: resolvedKey,
+    probeKey: resolvedKey,
     httpRequest: `GET ${url.toString()}`,
-    executionHit: hitCount > 0 ? "hit" : "miss",
+    requestMethod: "GET",
+    requestUrl: url.toString(),
+    executionHit: classifyExecutionHitStrictLine(resolvedKey, hitCount > 0),
     apiOutcome: res.status >= 200 && res.status < 300 ? "ok" : "error",
     reproStatus: "status_checked",
     probeHit:
@@ -116,6 +248,7 @@ export async function probeStatus(args: {
         : "No JSON probe payload",
     httpCode: res.status,
     httpResponse: res.json ?? res.text,
+    runtimeMode: typeof json?.mode === "string" ? json.mode : undefined,
     runDuration: "Not measured",
     runNotes: "probe_status executed",
     outputTemplate: args.outputTemplate,
@@ -126,6 +259,7 @@ export async function probeStatus(args: {
 
 export async function probeReset(args: {
   key: string;
+  lineHint?: number;
   baseUrl: string;
   resetPath: string;
   outputTemplate?: string | undefined;
@@ -137,13 +271,43 @@ export async function probeReset(args: {
     HARD_MAX_PROBE_TIMEOUT_MS,
   );
 
+  const resolvedKey = resolveProbeKey(args.key, args.lineHint);
+  if (!isLineKey(resolvedKey)) {
+    const structuredContent: Record<string, unknown> = {
+      request: { key: args.key, resolvedKey, lineHint: args.lineHint, timeoutMs },
+      result: {
+        reset: false,
+        reason: "line_key_required",
+      },
+    };
+    const text = renderProbeRecipe({
+      targetPath: resolvedKey,
+      probeKey: resolvedKey,
+      httpRequest: `POST ${joinUrl(args.baseUrl, args.resetPath)}`,
+      requestMethod: "POST",
+      requestUrl: joinUrl(args.baseUrl, args.resetPath),
+      requestHeaders: { "content-type": "application/json" },
+      requestBody: { key: resolvedKey },
+      executionHit: "not_hit",
+      apiOutcome: "error",
+      reproStatus: "line_key_required",
+      probeHit: "line probe key required (Class#method:<line>); method-only checks disabled",
+      httpCode: 400,
+      httpResponse: structuredContent.result,
+      runDuration: "Not measured",
+      runNotes: "probe_reset strict line mode",
+      outputTemplate: args.outputTemplate,
+    });
+    return { content: [{ type: "text", text }], structuredContent };
+  }
+
   const url = joinUrl(args.baseUrl, args.resetPath);
   let res;
   try {
     res = await fetchJson(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ key: args.key }),
+      body: JSON.stringify({ key: resolvedKey }),
       timeoutMs,
     });
   } catch (err) {
@@ -151,18 +315,22 @@ export async function probeReset(args: {
   }
 
   const structuredContent: Record<string, unknown> = {
-    request: { key: args.key, url, timeoutMs },
+    request: { key: args.key, resolvedKey, lineHint: args.lineHint, url, timeoutMs },
     response: { status: res.status, json: res.json, text: res.json ? undefined : res.text },
   };
 
   if (res.status >= 200 && res.status < 300) {
-    LAST_RESET_EPOCH_BY_KEY.set(args.key, Date.now());
+    LAST_RESET_EPOCH_BY_KEY.set(resolvedKey, Date.now());
   }
 
   const text = renderProbeRecipe({
-    targetPath: args.key,
-    probeKey: args.key,
+    targetPath: resolvedKey,
+    probeKey: resolvedKey,
     httpRequest: `POST ${url}`,
+    requestMethod: "POST",
+    requestUrl: url,
+    requestHeaders: { "content-type": "application/json" },
+    requestBody: { key: resolvedKey },
     executionHit: "not_applicable",
     apiOutcome: res.status >= 200 && res.status < 300 ? "ok" : "error",
     reproStatus: res.status >= 200 && res.status < 300 ? "reset_done" : "reset_failed",
@@ -179,6 +347,7 @@ export async function probeReset(args: {
 
 export async function probeWaitHit(args: {
   key: string;
+  lineHint?: number;
   baseUrl: string;
   statusPath: string;
   outputTemplate?: string | undefined;
@@ -201,16 +370,52 @@ export async function probeWaitHit(args: {
     1,
     HARD_MAX_PROBE_WAIT_MAX_RETRIES,
   );
+  const resolvedKey = resolveProbeKey(args.key, args.lineHint);
+
+  if (!isLineKey(resolvedKey)) {
+    const structuredContent: Record<string, unknown> = {
+      request: {
+        key: args.key,
+        resolvedKey,
+        timeoutMs,
+        pollIntervalMs,
+        maxRetries,
+      },
+      result: {
+        hit: false,
+        inline: false,
+        reason: "line_key_required",
+      },
+    };
+    const text = renderProbeRecipe({
+      targetPath: resolvedKey,
+      probeKey: resolvedKey,
+      httpRequest: `POLL ${joinUrl(args.baseUrl, args.statusPath)} (maxRetries=${maxRetries}, pollMs=${pollIntervalMs})`,
+      requestMethod: "POLL",
+      requestUrl: joinUrl(args.baseUrl, args.statusPath),
+      requestBody: { key: resolvedKey, maxRetries, pollIntervalMs, timeoutMs },
+      executionHit: "not_hit",
+      apiOutcome: "error",
+      reproStatus: "line_key_required",
+      probeHit: "line probe key required (Class#method:<line>); method-only checks disabled",
+      httpCode: 400,
+      httpResponse: structuredContent.result,
+      runDuration: "Not measured",
+      runNotes: "probe_wait_hit strict line mode",
+      outputTemplate: args.outputTemplate,
+    });
+    return { content: [{ type: "text", text }], structuredContent };
+  }
 
   let last: Record<string, unknown> | null = null;
   let staleCandidate: Record<string, unknown> | undefined;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     const waitStartEpochMs = Date.now();
-    const inlineStartEpochMs = LAST_RESET_EPOCH_BY_KEY.get(args.key) ?? waitStartEpochMs;
+    const inlineStartEpochMs = LAST_RESET_EPOCH_BY_KEY.get(resolvedKey) ?? waitStartEpochMs;
 
     const baselineRes = await probeStatus({
-      key: args.key,
+      key: resolvedKey,
       baseUrl: args.baseUrl,
       statusPath: args.statusPath,
       timeoutMs: Math.min(5_000, timeoutMs),
@@ -231,6 +436,7 @@ export async function probeWaitHit(args: {
       const structuredContent: Record<string, unknown> = {
         request: {
           key: args.key,
+          resolvedKey,
           timeoutMs,
           pollIntervalMs,
           maxRetries,
@@ -252,15 +458,19 @@ export async function probeWaitHit(args: {
         },
       };
       const text = renderProbeRecipe({
-        targetPath: args.key,
-        probeKey: args.key,
+        targetPath: resolvedKey,
+        probeKey: resolvedKey,
         httpRequest: `POLL ${joinUrl(args.baseUrl, args.statusPath)} (maxRetries=${maxRetries}, pollMs=${pollIntervalMs})`,
-        executionHit: "hit",
+        requestMethod: "POLL",
+        requestUrl: joinUrl(args.baseUrl, args.statusPath),
+        requestBody: { key: resolvedKey, maxRetries, pollIntervalMs, timeoutMs },
+        executionHit: classifyExecutionHitStrictLine(resolvedKey, true),
         apiOutcome: "ok",
-        reproStatus: "reproduced",
-        probeHit: `inline hit confirmed; hitCount=${baselineHitCount}`,
+        reproStatus: classifyReproStatusStrictLine(resolvedKey, true),
+        probeHit: `inline line hit confirmed; hitCount=${baselineHitCount}`,
         httpCode: 200,
         httpResponse: structuredContent.result,
+        runtimeMode: typeof baselineJson?.mode === "string" ? baselineJson.mode : undefined,
         runDuration: `${Date.now() - waitStartEpochMs}ms`,
         runNotes: "probe_wait_hit detected baseline inline hit",
         outputTemplate: args.outputTemplate,
@@ -271,7 +481,7 @@ export async function probeWaitHit(args: {
     const start = waitStartEpochMs;
     while (Date.now() - start < timeoutMs) {
       const res = await probeStatus({
-        key: args.key,
+        key: resolvedKey,
         baseUrl: args.baseUrl,
         statusPath: args.statusPath,
         timeoutMs: Math.min(5_000, timeoutMs),
@@ -291,6 +501,7 @@ export async function probeWaitHit(args: {
           const structuredContent: Record<string, unknown> = {
             request: {
               key: args.key,
+              resolvedKey,
               timeoutMs,
               pollIntervalMs,
               maxRetries,
@@ -311,15 +522,19 @@ export async function probeWaitHit(args: {
             },
           };
           const text = renderProbeRecipe({
-            targetPath: args.key,
-            probeKey: args.key,
+            targetPath: resolvedKey,
+            probeKey: resolvedKey,
             httpRequest: `POLL ${joinUrl(args.baseUrl, args.statusPath)} (maxRetries=${maxRetries}, pollMs=${pollIntervalMs})`,
-            executionHit: "hit",
+            requestMethod: "POLL",
+            requestUrl: joinUrl(args.baseUrl, args.statusPath),
+            requestBody: { key: resolvedKey, maxRetries, pollIntervalMs, timeoutMs },
+            executionHit: classifyExecutionHitStrictLine(resolvedKey, true),
             apiOutcome: "ok",
-            reproStatus: "reproduced",
-            probeHit: `inline hit confirmed; hitCount=${hitCount}, hitDelta=${hitDelta}`,
+            reproStatus: classifyReproStatusStrictLine(resolvedKey, true),
+            probeHit: `inline line hit confirmed; hitCount=${hitCount}, hitDelta=${hitDelta}`,
             httpCode: 200,
             httpResponse: structuredContent.result,
+            runtimeMode: typeof json?.mode === "string" ? json.mode : undefined,
             runDuration: `${Date.now() - waitStartEpochMs}ms`,
             runNotes: "probe_wait_hit detected inline hit during poll",
             outputTemplate: args.outputTemplate,
@@ -343,6 +558,7 @@ export async function probeWaitHit(args: {
   const structuredContent: Record<string, unknown> = {
     request: {
       key: args.key,
+      resolvedKey,
       timeoutMs,
       pollIntervalMs,
       maxRetries,
@@ -356,15 +572,19 @@ export async function probeWaitHit(args: {
     },
   };
   const text = renderProbeRecipe({
-    targetPath: args.key,
-    probeKey: args.key,
+    targetPath: resolvedKey,
+    probeKey: resolvedKey,
     httpRequest: `POLL ${joinUrl(args.baseUrl, args.statusPath)} (maxRetries=${maxRetries}, pollMs=${pollIntervalMs})`,
-    executionHit: "miss",
+    requestMethod: "POLL",
+    requestUrl: joinUrl(args.baseUrl, args.statusPath),
+    requestBody: { key: resolvedKey, maxRetries, pollIntervalMs, timeoutMs },
+    executionHit: classifyExecutionHitStrictLine(resolvedKey, false),
     apiOutcome: "timeout",
-    reproStatus: "not_reproduced",
-    probeHit: "no inline hit observed",
+    reproStatus: classifyReproStatusStrictLine(resolvedKey, false),
+    probeHit: "no inline line hit observed",
     httpCode: 408,
     httpResponse: structuredContent.result,
+    runtimeMode: typeof (last as any)?.response?.json?.mode === "string" ? (last as any).response.json.mode : undefined,
     runDuration: `${timeoutMs}ms x ${maxRetries}`,
     runNotes: "probe_wait_hit timeout",
     outputTemplate: args.outputTemplate,
@@ -387,6 +607,48 @@ export async function probeActuate(args: {
     1_000,
     HARD_MAX_PROBE_TIMEOUT_MS,
   );
+
+  if (args.mode === "actuate") {
+    if (!args.targetKey || !isLineKey(args.targetKey)) {
+      const structuredContent: Record<string, unknown> = {
+        request: {
+          mode: args.mode,
+          targetKey: args.targetKey,
+          returnBoolean: args.returnBoolean,
+          timeoutMs,
+        },
+        result: {
+          actuated: false,
+          reason: "line_key_required",
+        },
+      };
+      const text = renderProbeRecipe({
+        targetPath: args.targetKey ?? "probe_actuation",
+        probeKey: args.targetKey ?? "probe_actuation",
+        httpRequest: `POST ${joinUrl(args.baseUrl, args.actuatePath)}`,
+        requestMethod: "POST",
+        requestUrl: joinUrl(args.baseUrl, args.actuatePath),
+        requestHeaders: { "content-type": "application/json" },
+        requestBody: {
+          mode: args.mode,
+          targetKey: args.targetKey,
+          returnBoolean: args.returnBoolean,
+          actuatorId: args.actuatorId,
+        },
+        executionHit: "not_hit",
+        apiOutcome: "error",
+        reproStatus: "line_key_required",
+        probeHit: "line targetKey required for branch actuation (Class#method:<line>)",
+        httpCode: 400,
+        httpResponse: structuredContent.result,
+        runtimeMode: args.mode,
+        runDuration: "Not measured",
+        runNotes: "probe_actuate strict line mode",
+        outputTemplate: args.outputTemplate,
+      });
+      return { content: [{ type: "text", text }], structuredContent };
+    }
+  }
 
   const url = joinUrl(args.baseUrl, args.actuatePath);
   const body: Record<string, unknown> = {};
@@ -415,19 +677,35 @@ export async function probeActuate(args: {
   const effectiveMode = typeof json.mode === "string" ? json.mode : args.mode ?? "observe";
   const effectiveActuatorId = typeof json.actuatorId === "string" ? json.actuatorId : args.actuatorId ?? "";
   const effectiveTargetKey = typeof json.targetKey === "string" ? json.targetKey : args.targetKey ?? "";
+  const branchDecision =
+    typeof json.returnBoolean === "boolean"
+      ? json.returnBoolean
+      : typeof args.returnBoolean === "boolean"
+        ? args.returnBoolean
+        : undefined;
 
   const text = renderProbeRecipe({
     targetPath: effectiveTargetKey || "probe_actuation",
     probeKey: effectiveTargetKey || "probe_actuation",
     httpRequest: `POST ${url}`,
+    requestMethod: "POST",
+    requestUrl: url,
+    requestHeaders: { "content-type": "application/json" },
+    requestBody: body,
     executionHit: "not_applicable",
     apiOutcome: res.status >= 200 && res.status < 300 ? "ok" : "error",
     reproStatus: res.status >= 200 && res.status < 300 ? "actuation_applied" : "actuation_failed",
-    probeHit: `mode=${effectiveMode}, actuatorId=${effectiveActuatorId || "(none)"}`,
+    probeHit:
+      `mode=${effectiveMode}, actuatorId=${effectiveActuatorId || "(none)"}` +
+      (typeof branchDecision === "boolean"
+        ? `, branchDecision=${branchDecision ? "taken" : "fallthrough"}`
+        : ""),
     httpCode: res.status,
     httpResponse: res.json ?? res.text,
+    runtimeMode: effectiveMode,
     runDuration: "Not measured",
-    runNotes: "probe_actuate executed",
+    runNotes:
+      "probe_actuate executed (branch forcing applies only to conditional jump opcodes encountered on targetKey line)",
     outputTemplate: args.outputTemplate,
   });
 

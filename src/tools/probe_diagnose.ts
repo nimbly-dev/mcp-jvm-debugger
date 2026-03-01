@@ -72,7 +72,19 @@ export async function probeDiagnose(args: {
     (checks.reset as any)?.ok === true &&
     (checks.status as any)?.ok === true &&
     (checks.status as any)?.keyDecodingOk !== false;
+  const recipeSteps = [
+    "1. [execute] Reset then query probe diagnose key",
+    `   POST ${resetUrl} + GET ${statusUrl.toString()}`,
+    "2. [verify] Validate reset/status reachability and key decoding",
+    `   outcome=${allOk ? "healthy" : "issues_detected"}`,
+  ].join("\n");
   const model: RecipeTemplateModel = {
+    "recipe.mode": "probe",
+    "recipe.mode_reason":
+      "Direct probe diagnostic output; this is a wiring check rather than request recipe inference.",
+    "recipe.steps": recipeSteps,
+    "recipe.natural_steps": recipeSteps,
+    "recipe.actuated_steps": "No steps available.",
     "target.path": "mcp.jvm.diagnose#key",
     "probe.key": "mcp.jvm.diagnose#key",
     "http.request": `POST ${resetUrl} + GET ${statusUrl.toString()}`,
@@ -93,7 +105,26 @@ export async function probeDiagnose(args: {
     "run.duration": "Not measured",
     "run.notes": recommendations.join(" | ") || "No recommendations",
   };
-  const text = renderRecipeTemplate(args.outputTemplate ?? DEFAULT_RECIPE_OUTPUT_TEMPLATE, model);
+  // Keep probe utility outputs machine-friendly by default to avoid recursive
+  // "recipe-of-probe-call" loops in agent workflows.
+  const text =
+    !args.outputTemplate || args.outputTemplate.trim().length === 0
+      ? JSON.stringify(
+          {
+            mode: "probe",
+            diagnose: {
+              healthy: allOk,
+              probeKey,
+              resetUrl,
+              statusUrl: statusUrl.toString(),
+              recommendations,
+            },
+            checks,
+          },
+          null,
+          2,
+        )
+      : renderRecipeTemplate(args.outputTemplate ?? DEFAULT_RECIPE_OUTPUT_TEMPLATE, model);
 
   return {
     content: [{ type: "text", text }],

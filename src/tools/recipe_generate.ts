@@ -1,125 +1,19 @@
-import * as fs from "node:fs/promises";
-import * as path from "node:path";
 import type { AuthResolution } from "../models/auth_resolution.model";
-import { inferBranchCondition } from "../utils/recipe.util";
 import { resolveAuthForRecipe } from "./auth_resolve";
 import { inferTargets } from "./target_infer";
+import { buildRecipeExecutionPlan } from "../utils/recipe_execution_plan.util";
+import { buildSearchRoots, findControllerRequestCandidate } from "../utils/recipe_candidate_infer.util";
+import type { RecipeCandidate, RecipeExecutionPlan } from "../utils/recipe_types.util";
 
-type ParamType = {
-  name: string;
-  requestName: string;
-  javaType?: string;
-};
+export type { RecipeCandidate, RecipeExecutionPlan } from "../utils/recipe_types.util";
 
-type RecipeCandidate = {
-  method: "GET";
-  path: string;
-  queryTemplate: string;
-  fullUrlHint: string;
-  rationale: string[];
-};
-
-function sampleValueForType(javaType?: string): string {
-  const t = (javaType ?? "").toLowerCase();
-  if (t.includes("double") || t.includes("float") || t.includes("bigdecimal")) return "1000";
-  if (t.includes("int") || t.includes("long")) return "1";
-  if (t.includes("bool")) return "true";
-  return "value";
-}
-
-function findControllerCallContext(text: string, methodName: string): {
-  line: number;
-  argName?: string;
-  contextLines: string[];
-} | null {
-  const lines = text.split(/\r?\n/);
-  const rx = new RegExp(`\\b${methodName}\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*\\)`);
-  for (let i = 0; i < lines.length; i++) {
-    const m = lines[i]!.match(rx);
-    if (!m) continue;
-    const argName = m[1];
-    const start = Math.max(0, i - 6);
-    const end = Math.min(lines.length - 1, i + 2);
-    const out: {
-      line: number;
-      argName?: string;
-      contextLines: string[];
-    } = {
-      line: i + 1,
-      contextLines: lines.slice(start, end + 1),
-    };
-    if (argName) out.argName = argName;
-    return out;
-  }
-  return null;
-}
-
-function inferEndpointPath(text: string): string {
-  const classReq = text.match(/@RequestMapping\s*\(\s*"([^"]+)"\s*\)/);
-  const classBase = classReq?.[1] ?? "";
-
-  const getReq =
-    text.match(/@GetMapping\s*\(\s*"([^"]+)"\s*\)/) ??
-    text.match(/@GetMapping\s*\(\s*value\s*=\s*"([^"]+)"\s*\)/);
-  const sub = getReq?.[1] ?? "";
-
-  const pathJoined = `${classBase}${sub}`;
-  return pathJoined.startsWith("/") ? pathJoined : `/${pathJoined}`;
-}
-
-function parseRequestParamsFromController(text: string): ParamType[] {
-  const out: ParamType[] = [];
-  const rx =
-    /@RequestParam(?:\s*\(\s*([^)]*)\s*\))?\s*(?:final\s+)?([A-Za-z0-9_<>\[\].?]+)\s+([A-Za-z_][A-Za-z0-9_]*)/g;
-  let m: RegExpExecArray | null;
-  while ((m = rx.exec(text)) !== null) {
-    const annotationArgs = m[1];
-    const javaType = m[2];
-    const name = m[3];
-    if (!name) continue;
-    if (out.some((p) => p.name === name)) continue;
-    let requestName = name;
-    if (annotationArgs) {
-      const named = annotationArgs.match(/\b(?:name|value)\s*=\s*"([^"]+)"/);
-      const bare = annotationArgs.match(/"([^"]+)"/);
-      if (named?.[1]) {
-        requestName = named[1];
-      } else if (bare?.[1]) {
-        requestName = bare[1];
-      }
-    }
-    const entry: ParamType = { name, requestName };
-    if (javaType) entry.javaType = javaType;
-    out.push(entry);
-  }
-  return out;
-}
-
-async function findOpenApiPathHint(rootAbs: string, paramName: string): Promise<string | null> {
-  const candidates = [
-    path.join(rootAbs, "docs", "openapi", "openapi.yaml"),
-    path.join(rootAbs, "openapi.yaml"),
-    path.join(rootAbs, "swagger.yaml"),
-  ];
-  for (const p of candidates) {
-    let text = "";
-    try {
-      text = await fs.readFile(p, "utf8");
-    } catch {
-      continue;
-    }
-    const lines = text.split(/\r?\n/);
-    for (let i = 0; i < lines.length; i++) {
-      if (!lines[i]!.includes(`name: ${paramName}`)) continue;
-      for (let j = i; j >= 0; j--) {
-        const line = lines[j]!;
-        const m = line.match(/^\s{2}(\/[^:]+):\s*$/);
-        if (m?.[1]) return m[1];
-      }
-    }
-  }
-  return null;
-}
+export type RecipeResultType = "recipe" | "report";
+export type RecipeStatus =
+  | "natural_ready"
+  | "unreachable_natural"
+  | "actuated_ready"
+  | "actuated_blocked"
+  | "target_not_inferred";
 
 export async function generateRecipe(args: {
   rootAbs: string;
@@ -127,6 +21,7 @@ export async function generateRecipe(args: {
   classHint: string;
   methodHint: string;
   lineHint?: number;
+  mode?: "natural" | "actuated";
   maxCandidates?: number;
   authToken?: string;
   authUsername?: string;
@@ -140,9 +35,14 @@ export async function generateRecipe(args: {
     confidence: number;
   };
   requestCandidates: RecipeCandidate[];
+  executionPlan: RecipeExecutionPlan;
+  resultType: RecipeResultType;
+  status: RecipeStatus;
+  nextAction?: string;
   auth: AuthResolution;
   notes: string[];
 }> {
+  const requestedMode = args.mode ?? "natural";
   const inferArgs: Parameters<typeof inferTargets>[0] = {
     rootAbs: args.rootAbs,
     classHint: args.classHint,
@@ -152,6 +52,7 @@ export async function generateRecipe(args: {
   if (typeof args.lineHint === "number") inferArgs.lineHint = args.lineHint;
   const inferred = await inferTargets(inferArgs);
   const top = inferred.candidates[0];
+
   const unresolvedAuth: AuthResolution = {
     required: "unknown",
     status: "unknown",
@@ -159,82 +60,36 @@ export async function generateRecipe(args: {
     nextAction: "No target inferred; cannot resolve auth strategy yet.",
     notes: ["No method candidate matched current hints."],
   };
+
   if (!top) {
+    const planArgs: Parameters<typeof buildRecipeExecutionPlan>[0] = {
+      requestedMode,
+      auth: unresolvedAuth,
+    };
+    if (typeof args.lineHint === "number") planArgs.lineHint = args.lineHint;
+    const executionPlan = buildRecipeExecutionPlan(planArgs);
     return {
       requestCandidates: [],
+      executionPlan,
+      resultType: "report",
+      status: "target_not_inferred",
+      nextAction:
+        "Refine classHint/methodHint/lineHint and rerun recipe_generate before attempting natural or actuated execution.",
       auth: unresolvedAuth,
       notes: ["No matching method candidate inferred from current hints."],
     };
   }
 
-  // Controller-focused heuristic: find a controller calling this specs method.
-  const controllerFiles = await inferTargets({
-    rootAbs: args.rootAbs,
-    classHint: "Controller",
-    maxCandidates: 50,
+  const searchRootsAbs = buildSearchRoots(args.rootAbs, args.workspaceRootAbs);
+  const controllerMatch = await findControllerRequestCandidate({
+    searchRootsAbs,
+    methodHint: args.methodHint,
   });
 
-  const chosenControllers = controllerFiles.candidates
-    .map((c) => c.file)
-    .filter((v, i, arr) => arr.indexOf(v) === i)
-    .slice(0, 50);
-
-  let bestRequest: RecipeCandidate | undefined;
-  let matchedControllerFile: string | undefined;
-  let matchedBranchCondition: string | undefined;
-  for (const file of chosenControllers) {
-    let text = "";
-    try {
-      text = await fs.readFile(file, "utf8");
-    } catch {
-      continue;
-    }
-    const call = findControllerCallContext(text, args.methodHint);
-    if (!call) continue;
-
-    const params = parseRequestParamsFromController(text);
-    const endpoint = inferEndpointPath(text);
-    const arg = call.argName;
-    const argParam = params.find((p) => p.name === arg);
-    const requestParamName = argParam?.requestName ?? arg;
-
-    const queryParts: string[] = [];
-    if (requestParamName) {
-      queryParts.push(`${requestParamName}=${sampleValueForType(argParam?.javaType)}`);
-    }
-    // Common page params for pageable endpoints.
-    if (params.some((p) => p.name === "page")) queryParts.push("page=0");
-    if (params.some((p) => p.name === "size")) queryParts.push("size=1");
-
-    // Heuristic for else-if price branches: if finalPriceLte uses maxPrice, omit minPrice.
-    const ctx = call.contextLines.join("\n");
-    if (/else\s+if\s*\(\s*maxPrice\s*!=\s*null/.test(ctx) && /minPrice/.test(ctx)) {
-      queryParts.push("minPrice=<omit>");
-    }
-    matchedBranchCondition = inferBranchCondition(call.contextLines);
-
-    const openapiPath = requestParamName
-      ? await findOpenApiPathHint(args.rootAbs, requestParamName)
-      : null;
-    const pathHint = openapiPath ?? endpoint;
-
-    bestRequest = {
-      method: "GET",
-      path: pathHint,
-      queryTemplate: queryParts.join("&"),
-      fullUrlHint: `${pathHint}?${queryParts.filter((q) => !q.endsWith("<omit>")).join("&")}`,
-      rationale: [
-        `Controller call matched: ${args.methodHint}(${arg ?? "?"})`,
-        `Inferred endpoint path: ${pathHint}`,
-        `Inferred request param: ${requestParamName ?? "(unknown)"}`,
-        ...(matchedBranchCondition
-          ? [`Branch condition context: ${matchedBranchCondition}`]
-          : []),
-      ],
-    };
-    matchedControllerFile = file;
-    break;
-  }
+  const bestRequest = controllerMatch.recipe;
+  const matchedControllerFile = controllerMatch.matchedControllerFile;
+  const matchedBranchCondition = controllerMatch.matchedBranchCondition;
+  const authRootAbs = controllerMatch.matchedRootAbs ?? args.rootAbs;
 
   const inferredTarget: {
     key?: string;
@@ -247,10 +102,11 @@ export async function generateRecipe(args: {
   };
   if (top.key) inferredTarget.key = top.key;
   if (typeof top.line === "number") inferredTarget.line = top.line;
+
   const auth: AuthResolution =
     bestRequest || matchedControllerFile
       ? await resolveAuthForRecipe({
-          projectRootAbs: args.rootAbs,
+          projectRootAbs: authRootAbs,
           workspaceRootAbs: args.workspaceRootAbs,
           endpointPath: bestRequest?.path,
           controllerFileAbs: matchedControllerFile,
@@ -272,12 +128,50 @@ export async function generateRecipe(args: {
           ],
         };
 
+  const planArgs: Parameters<typeof buildRecipeExecutionPlan>[0] = {
+    requestedMode,
+    auth,
+    targetFile: inferredTarget.file,
+  };
+  if (typeof args.lineHint === "number") planArgs.lineHint = args.lineHint;
+  if (inferredTarget.key) planArgs.inferredTargetKey = inferredTarget.key;
+  if (bestRequest) planArgs.requestCandidate = bestRequest;
+  const executionPlan = buildRecipeExecutionPlan(planArgs);
+
+  let resultType: RecipeResultType = "recipe";
+  let status: RecipeStatus = requestedMode === "actuated" ? "actuated_ready" : "natural_ready";
+  let nextAction: string | undefined;
+
+  if (requestedMode === "natural") {
+    if (!bestRequest) {
+      resultType = "report";
+      status = "unreachable_natural";
+      nextAction = inferredTarget.key
+        ? `Natural path is unreachable. If you want fallback, rerun recipe_generate with mode=actuated using key=${inferredTarget.key}.`
+        : "Natural path is unreachable. If you want fallback, rerun recipe_generate with mode=actuated after refining target inference.";
+    } else if (auth.status === "needs_user_input") {
+      resultType = "report";
+      status = "unreachable_natural";
+      nextAction = args.authToken
+        ? "Provide complete auth credentials required by the inferred endpoint, then rerun natural mode."
+        : "Provide authToken (and login credentials if required), then rerun natural mode.";
+    }
+  } else if (!inferredTarget.key) {
+    resultType = "report";
+    status = "actuated_blocked";
+    nextAction = "Actuated mode requires an inferred targetKey. Refine classHint/methodHint/lineHint and rerun.";
+  }
+
   const baseNotes = bestRequest
     ? []
-    : ["No controller call mapping found; use inferred key with manual endpoint discovery."];
+    : [
+        "No controller call mapping found in the selected module roots; use inferred key with manual endpoint discovery.",
+      ];
+
   if (typeof args.lineHint === "number") {
+    baseNotes.push("Success criterion is line_hit when lineHint is provided.");
     baseNotes.push(
-      "Probe key granularity is method-level (Class#method). A line pause requires matching branch conditions.",
+      "Use line probe key Class#method:line for line_hit verification.",
     );
     if (typeof inferredTarget.line === "number" && inferredTarget.line !== args.lineHint) {
       baseNotes.push(
@@ -285,13 +179,30 @@ export async function generateRecipe(args: {
       );
     }
   }
+  if (typeof args.lineHint !== "number") {
+    baseNotes.push("Strict line mode: lineHint is required; method-only probe checks are disabled.");
+  }
+
   if (matchedBranchCondition) {
     baseNotes.push(`Line/branch precondition hint: ${matchedBranchCondition}`);
+  }
+
+  if (requestedMode === "natural") {
+    baseNotes.push("Natural mode does not auto-switch to actuated mode. Actuation requires explicit second prompt.");
+  }
+  if (requestedMode === "actuated") {
+    baseNotes.push(
+      "Actuation targets line-level branch behavior only (Class#method:line) and does not imply natural-path reachability.",
+    );
   }
 
   return {
     inferredTarget,
     requestCandidates: bestRequest ? [bestRequest] : [],
+    executionPlan,
+    resultType,
+    status,
+    ...(nextAction ? { nextAction } : {}),
     auth,
     notes: baseNotes,
   };

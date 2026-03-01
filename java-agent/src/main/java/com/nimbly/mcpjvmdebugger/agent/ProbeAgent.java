@@ -80,9 +80,7 @@ public final class ProbeAgent {
                     .and(ElementMatchers.not(ElementMatchers.isNative()))
                     .and(ElementMatchers.not(ElementMatchers.nameStartsWith("lambda$")));
             DynamicType.Builder<?> out = b.visit(Advice.to(HitAdvice.class).on(matcher));
-            ElementMatcher.Junction<MethodDescription> boolMatcher =
-                matcher.and(ElementMatchers.returns(boolean.class));
-            out = out.visit(Advice.to(BooleanActuationAdvice.class).on(boolMatcher));
+            out = out.visit(new LineHitVisitor(td.getName()));
             return out;
           }
         })

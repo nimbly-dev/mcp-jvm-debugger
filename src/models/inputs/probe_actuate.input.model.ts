@@ -13,10 +13,12 @@ export const ProbeActuateInputSchema = {
   targetKey: z
     .string()
     .optional()
-    .describe("Target method key for boolean return actuation, e.g. fully.qualified.Class#method."),
+    .describe(
+      "Target line key for branch actuation in strict mode, e.g. fully.qualified.Class#method:line.",
+    ),
   returnBoolean: z
     .boolean()
     .optional()
-    .describe("Boolean value to force as return value for targetKey when in actuate mode."),
+    .describe("Branch decision for target conditional at targetKey: true=force jump/taken, false=force fallthrough."),
   timeoutMs: z.number().int().positive().optional(),
 } as const;

@@ -33,6 +33,8 @@ Use JVM args (example):
   - return value override: `true|false`
 - If no wildcard is present, pattern is treated as package prefix.
 - Runtime probe keys are dynamic: `fully.qualified.ClassName#methodName`.
+- Line-level probe keys are also emitted: `fully.qualified.ClassName#methodName:<lineNumber>`.
+  - Example: `com.nimbly.phshoesbackend.useraccount.core.service.impl.SuppressionServiceImpl#shouldBlock:32`
 - In `mcp-jvm-debugger`, `projects_discover` can infer a default include glob from project packages.
 - If `include` is omitted, the agent auto-infers base package at startup:
   - from executable jar manifest `Start-Class` (or `Main-Class`)
@@ -50,6 +52,8 @@ Use JVM args (example):
 
 - `GET /__probe/status?key=<probe-key>`
   - Example key: `com.nimbly.phshoesbackend.catalog.core.repository.jpa.CatalogShoeSpecifications#finalPriceGte`
+  - Example line key: `com.nimbly.phshoesbackend.catalog.core.repository.jpa.CatalogShoeSpecifications#finalPriceGte:87`
   - Example response: `{ "key":"com.nimbly.phshoesbackend.catalog.core.repository.jpa.CatalogShoeSpecifications#finalPriceGte", "hitCount":1, "lastHitEpochMs":1739671200000, "mode":"observe", "actuatorId":"", "actuateTargetKey":"", "actuateReturnBoolean":false }`
 - `POST /__probe/reset`
   - Body: `{ "key":"com.nimbly.phshoesbackend.catalog.core.repository.jpa.CatalogShoeSpecifications#finalPriceGte" }`
+  - Line-key reset works the same way using `Class#method:<line>`.
