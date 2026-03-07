@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { probeReset, probeStatus, probeWaitHit } = require("../../src/tools/probe");
+const { probeReset, probeStatus, probeWaitHit, probeCaptureGet } = require("../../src/tools/probe");
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -60,6 +60,42 @@ test("probe_status returns invalid_line_target for unresolved runtime line", asy
     assert.equal(out.structuredContent.result.actionCode, "runtime_not_aligned");
   });
   assert.equal(calls, 1);
+});
+
+test("probe_status supports 0.1.0v nested envelope", async () => {
+  await withMockedFetch(async () => {
+    return jsonResponse(200, {
+      contractVersion: "0.1.0v",
+      probe: {
+        key: "com.example.Catalog#updateAndStageSynonymRule:122",
+        hitCount: 1,
+        lastHitEpochMs: 1234,
+        lineResolvable: true,
+        lineValidation: "resolvable",
+      },
+      capturePreview: {
+        available: true,
+        captureId: "abc123",
+      },
+      runtime: {
+        mode: "observe",
+        actuatorId: "",
+        actuateTargetKey: "",
+        actuateReturnBoolean: false,
+      },
+    });
+  }, async () => {
+    const out = await probeStatus({
+      key: "com.example.Catalog#updateAndStageSynonymRule:122",
+      baseUrl: "http://127.0.0.1:9191",
+      statusPath: "/__probe/status",
+    });
+    const parsed = parseProbeText(out);
+    assert.equal(parsed.reproStatus, "status_checked");
+    assert.equal(parsed.executionHit, "line_hit");
+    assert.equal(out.structuredContent.response.json.contractVersion, "0.1.0v");
+    assert.equal(out.structuredContent.response.json.capturePreview.captureId, "abc123");
+  });
 });
 
 test("probe_reset returns invalid_line_target semantics when runtime line is unresolved", async () => {
@@ -293,6 +329,96 @@ test("probe_status supports keys[] batch with partial success semantics", async 
 
   assert.equal(calls, 1);
   assert.deepEqual(postedBody, { keys: [lineKey] });
+});
+
+test("probe_status supports 0.1.0v batch rows with nested probe payload", async () => {
+  const lineKey = "com.example.Catalog#updateAndStageSynonymRule:122";
+  await withMockedFetch(async () => {
+    return jsonResponse(200, {
+      contractVersion: "0.1.0v",
+      ok: true,
+      count: 1,
+      results: [
+        {
+          ok: true,
+          probe: {
+            key: lineKey,
+            hitCount: 3,
+            lastHitEpochMs: 2222,
+            lineResolvable: true,
+            lineValidation: "resolvable",
+          },
+          capturePreview: {
+            available: true,
+            captureId: "cap-1",
+          },
+          runtime: {
+            mode: "observe",
+            actuatorId: "",
+            actuateTargetKey: "",
+            actuateReturnBoolean: false,
+          },
+        },
+      ],
+    });
+  }, async () => {
+    const out = await probeStatus({
+      keys: [lineKey],
+      baseUrl: "http://127.0.0.1:9191",
+      statusPath: "/__probe/status",
+    });
+    const parsed = parseProbeText(out);
+    const results = parsed.results as Array<Record<string, unknown>>;
+    const first = results[0];
+    if (!first) throw new Error("expected first batch row");
+    assert.equal(first.probeHit, "hitCount=3, lastHitEpochMs=2222");
+    assert.equal(first.runtimeMode, "observe");
+    assert.equal((first as any).capturePreview.captureId, "cap-1");
+  });
+});
+
+test("probe_capture_get returns capture payload when available", async () => {
+  await withMockedFetch(async () => {
+    return jsonResponse(200, {
+      contractVersion: "0.1.0v",
+      capture: {
+        captureId: "abc123",
+        methodKey: "com.example.Catalog#updateAndStageSynonymRule",
+        capturedAtEpochMs: 1000,
+        redactionMode: "basic",
+        args: [{ index: 0, value: "{\"sku\":\"A1\"}", truncated: false, originalLength: 12, redacted: false }],
+        returnValue: { value: "{\"ok\":true}", truncated: false, originalLength: 11, redacted: false },
+        thrownValue: null,
+        truncatedAny: false,
+      },
+    });
+  }, async () => {
+    const out = await probeCaptureGet({
+      captureId: "abc123",
+      baseUrl: "http://127.0.0.1:9191",
+      capturePath: "/__probe/capture",
+    });
+    assert.equal(out.structuredContent.result.found, true);
+    assert.equal(out.structuredContent.result.capture.captureId, "abc123");
+  });
+});
+
+test("probe_capture_get returns not found state when capture is missing", async () => {
+  await withMockedFetch(async () => {
+    return jsonResponse(404, {
+      contractVersion: "0.1.0v",
+      error: "capture_not_found",
+      captureId: "missing",
+    });
+  }, async () => {
+    const out = await probeCaptureGet({
+      captureId: "missing",
+      baseUrl: "http://127.0.0.1:9191",
+      capturePath: "/__probe/capture",
+    });
+    assert.equal(out.structuredContent.result.found, false);
+    assert.equal(out.structuredContent.result.reason, "capture_not_found");
+  });
 });
 
 test("probe_reset supports keys[] batch with partial success semantics", async () => {

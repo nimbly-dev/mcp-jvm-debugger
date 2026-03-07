@@ -21,10 +21,14 @@ export function parseProbeSnapshot(structuredContent: Record<string, unknown>): 
 } {
   const response = structuredContent.response as Record<string, unknown> | undefined;
   const json = response?.json as Record<string, unknown> | undefined;
+  const probe =
+    json && typeof json.probe === "object" && json.probe !== null
+      ? (json.probe as Record<string, unknown>)
+      : json;
   const out: { key?: string; hitCount?: number; lastHitEpochMs?: number } = {};
-  const key = json?.key;
-  const hitCount = json?.hitCount;
-  const lastHitEpochMs = json?.lastHitEpochMs;
+  const key = probe?.key;
+  const hitCount = probe?.hitCount;
+  const lastHitEpochMs = probe?.lastHitEpochMs;
   if (typeof key === "string") out.key = key;
   if (typeof hitCount === "number") out.hitCount = hitCount;
   if (typeof lastHitEpochMs === "number") out.lastHitEpochMs = lastHitEpochMs;

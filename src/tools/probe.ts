@@ -96,6 +96,61 @@ function readLineValidation(json: Record<string, unknown> | null): {
   return out;
 }
 
+function normalizeStatusJson(raw: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (!raw) return null;
+  const probe =
+    typeof raw.probe === "object" && raw.probe !== null
+      ? (raw.probe as Record<string, unknown>)
+      : raw;
+  const runtime =
+    typeof raw.runtime === "object" && raw.runtime !== null
+      ? (raw.runtime as Record<string, unknown>)
+      : null;
+  const out: Record<string, unknown> = { ...probe };
+  if (typeof raw.contractVersion === "string") out.contractVersion = raw.contractVersion;
+  if (typeof raw.capturePreview === "object" && raw.capturePreview !== null) {
+    out.capturePreview = raw.capturePreview;
+  }
+  if (runtime) {
+    out.runtime = runtime;
+    if (typeof runtime.mode === "string") out.mode = runtime.mode;
+  }
+  return out;
+}
+
+function normalizeStatusBatchRow(raw: Record<string, unknown>): Record<string, unknown> {
+  if (typeof raw.probe !== "object" || raw.probe === null) return raw;
+  const out: Record<string, unknown> = {
+    ...(raw.probe as Record<string, unknown>),
+  };
+  if (typeof raw.ok === "boolean") out.ok = raw.ok;
+  if (typeof raw.contractVersion === "string") out.contractVersion = raw.contractVersion;
+  if (typeof raw.capturePreview === "object" && raw.capturePreview !== null) {
+    out.capturePreview = raw.capturePreview;
+  }
+  if (typeof raw.runtime === "object" && raw.runtime !== null) {
+    out.runtime = raw.runtime;
+    const mode = (raw.runtime as Record<string, unknown>).mode;
+    if (typeof mode === "string") out.mode = mode;
+  }
+  return out;
+}
+
+function normalizeStatusBatchPayload(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object") return raw;
+  const json = raw as Record<string, unknown>;
+  const results = Array.isArray(json.results) ? json.results : null;
+  if (!results) return raw;
+  return {
+    ...json,
+    results: results
+      .map((row) =>
+        row && typeof row === "object" ? normalizeStatusBatchRow(row as Record<string, unknown>) : row,
+      )
+      .filter((row) => !!row),
+  };
+}
+
 function invalidLineTargetProbeHitMessage(hitCount: number): string {
   return (
     "target line cannot be resolved to executable bytecode for this Class#method; " +
@@ -370,6 +425,7 @@ async function probeStatusSingle(args: {
   } catch (err) {
     throw new Error(probeUnreachableMessage(url.toString(), err));
   }
+  const normalizedJson = normalizeStatusJson((res.json as Record<string, unknown> | null) ?? null);
 
   const structuredContent: Record<string, unknown> = {
     request: {
@@ -379,10 +435,10 @@ async function probeStatusSingle(args: {
       url: url.toString(),
       timeoutMs,
     },
-    response: { status: res.status, json: res.json, text: res.json ? undefined : res.text },
+    response: { status: res.status, json: normalizedJson, text: normalizedJson ? undefined : res.text },
   };
 
-  const json = res.json as Record<string, unknown> | null;
+  const json = normalizedJson;
   const hitCount = typeof json?.hitCount === "number" ? json.hitCount : 0;
   const lineValidation = readLineValidation(json);
   const reproStatus = lineValidation.invalidLineTarget ? "invalid_line_target" : "status_checked";
@@ -414,7 +470,7 @@ async function probeStatusSingle(args: {
     probeHit,
     ...(guidance ? { actionCode: guidance.actionCode, nextAction: guidance.nextAction } : {}),
     httpCode: res.status,
-    httpResponse: res.json ?? res.text,
+    httpResponse: normalizedJson ?? res.text,
     runtimeMode: typeof json?.mode === "string" ? json.mode : undefined,
     runDuration: "Not measured",
     runNotes: lineValidation.invalidLineTarget
@@ -470,14 +526,16 @@ async function probeStatusBatch(args: {
     } catch (err) {
       throw new Error(probeUnreachableMessage(url, err));
     }
-    const rawJson = remoteResponse.json as Record<string, unknown> | null;
+    const rawJson = normalizeStatusBatchPayload(remoteResponse.json) as Record<string, unknown> | null;
     const rawResults = Array.isArray(rawJson?.results)
       ? (rawJson.results as Array<Record<string, unknown>>)
       : [];
     for (const row of rawResults) {
-      if (typeof row?.key !== "string") continue;
-      remoteByKey.set(row.key, row);
+      const normalizedRow = normalizeStatusBatchRow(row);
+      if (typeof normalizedRow?.key !== "string") continue;
+      remoteByKey.set(normalizedRow.key, normalizedRow);
     }
+    remoteResponse = { ...remoteResponse, json: rawJson };
   }
 
   for (const key of lineKeys) {
@@ -520,6 +578,9 @@ async function probeStatusBatch(args: {
       httpCode: remoteResponse?.status ?? 200,
       httpResponse: row,
       runtimeMode: typeof row.mode === "string" ? row.mode : undefined,
+      ...(typeof row.capturePreview === "object" && row.capturePreview !== null
+        ? { capturePreview: row.capturePreview }
+        : {}),
     });
   }
   const orderedResults: Array<Record<string, unknown> & { apiOutcome: string }> = [];
@@ -573,6 +634,65 @@ export async function probeStatus(args: {
   if (typeof args.lineHint === "number") singleArgs.lineHint = args.lineHint;
   if (typeof args.timeoutMs === "number") singleArgs.timeoutMs = args.timeoutMs;
   return probeStatusSingle(singleArgs);
+}
+
+export async function probeCaptureGet(args: {
+  captureId: string;
+  baseUrl: string;
+  capturePath: string;
+  timeoutMs?: number;
+}): Promise<ToolTextResponse> {
+  const timeoutMs = clampInt(
+    args.timeoutMs ?? DEFAULT_PROBE_TIMEOUT_MS,
+    1_000,
+    HARD_MAX_PROBE_TIMEOUT_MS,
+  );
+  const captureId = args.captureId.trim();
+  if (!captureId) {
+    throw new Error("probe_capture_get requires captureId.");
+  }
+  const url = new URL(joinUrl(args.baseUrl, args.capturePath));
+  url.searchParams.set("captureId", captureId);
+
+  let res;
+  try {
+    res = await fetchJson(url.toString(), { method: "GET", timeoutMs });
+  } catch (err) {
+    throw new Error(probeUnreachableMessage(url.toString(), err));
+  }
+
+  const json = (res.json as Record<string, unknown> | null) ?? null;
+  const capture =
+    json && typeof json.capture === "object" && json.capture !== null
+      ? (json.capture as Record<string, unknown>)
+      : null;
+  const found = res.status >= 200 && res.status < 300 && capture !== null;
+
+  const structuredContent: Record<string, unknown> = {
+    request: {
+      captureId,
+      url: url.toString(),
+      timeoutMs,
+    },
+    response: { status: res.status, json, text: json ? undefined : res.text },
+    result: found
+      ? {
+          found: true,
+          capture,
+        }
+      : {
+          found: false,
+          reason: typeof json?.error === "string" ? json.error : "capture_unavailable",
+        },
+  };
+
+  const textPayload = {
+    mode: "probe_capture_get",
+    request: structuredContent.request,
+    response: structuredContent.response,
+    result: structuredContent.result,
+  };
+  return buildTextResponse(structuredContent, JSON.stringify(textPayload, null, 2));
 }
 
 async function probeResetSingle(args: {

@@ -47,13 +47,22 @@ Use JVM args (example):
   - `-Dmcp.probe.actuator.id=<id>` or env `MCP_PROBE_ACTUATOR_ID`
   - `-Dmcp.probe.actuate.target=<Class#method>` or env `MCP_PROBE_ACTUATE_TARGET`
   - `-Dmcp.probe.actuate.return.boolean=true|false` or env `MCP_PROBE_ACTUATE_RETURN_BOOLEAN`
+  - `-Dmcp.probe.capture.enabled=true|false` or env `MCP_PROBE_CAPTURE_ENABLED`
+  - `-Dmcp.probe.capture.max.keys=<int>` or env `MCP_PROBE_CAPTURE_MAX_KEYS`
+  - `-Dmcp.probe.capture.max.args=<int>` or env `MCP_PROBE_CAPTURE_MAX_ARGS`
+  - `-Dmcp.probe.capture.preview.max.chars=<int>` or env `MCP_PROBE_CAPTURE_PREVIEW_MAX_CHARS`
+  - `-Dmcp.probe.capture.stored.max.chars=<int>` or env `MCP_PROBE_CAPTURE_STORED_MAX_CHARS`
+  - `-Dmcp.probe.capture.redaction=basic|off` or env `MCP_PROBE_CAPTURE_REDACTION`
 
 ### Endpoints Exposed By Agent
 
 - `GET /__probe/status?key=<probe-key>`
   - Example key: `com.nimbly.phshoesbackend.catalog.core.repository.jpa.CatalogShoeSpecifications#finalPriceGte`
   - Example line key: `com.nimbly.phshoesbackend.catalog.core.repository.jpa.CatalogShoeSpecifications#finalPriceGte:87`
-  - Example response: `{ "key":"com.nimbly.phshoesbackend.catalog.core.repository.jpa.CatalogShoeSpecifications#finalPriceGte", "hitCount":1, "lastHitEpochMs":1739671200000, "mode":"observe", "actuatorId":"", "actuateTargetKey":"", "actuateReturnBoolean":false }`
+  - Example response: `{ "contractVersion":"0.1.0v", "probe": { "key":"...#finalPriceGte:87", "hitCount":1, "lastHitEpochMs":1739671200000, "lineResolvable":true, "lineValidation":"resolvable" }, "capturePreview": { "available":true, "captureId":"abc123", "methodKey":"...#finalPriceGte", "capturedAtEpochMs":1739671200000, "redactionMode":"basic", "argsPreview":[{"index":0,"value":"{\"sku\":\"A1\"}","truncated":false,"originalLength":12,"redacted":false}], "returnPreview":{"value":"true","truncated":false,"originalLength":4,"redacted":false}, "thrownPreview":null, "truncatedAny":false }, "runtime": { "mode":"observe", "actuatorId":"", "actuateTargetKey":"", "actuateReturnBoolean":false } }`
+- `GET /__probe/capture?captureId=<capture-id>`
+  - Returns fuller captured argument/return/throw payload for the requested `captureId`.
+  - Example response: `{ "contractVersion":"0.1.0v", "capture": { "captureId":"abc123", "methodKey":"...#finalPriceGte", "capturedAtEpochMs":1739671200000, "redactionMode":"basic", "args":[...], "returnValue":{...}, "thrownValue":null, "truncatedAny":false } }`
 - `POST /__probe/reset`
   - Body: `{ "key":"com.nimbly.phshoesbackend.catalog.core.repository.jpa.CatalogShoeSpecifications#finalPriceGte" }`
   - Line-key reset works the same way using `Class#method:<line>`.
