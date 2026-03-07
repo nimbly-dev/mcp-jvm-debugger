@@ -2,6 +2,7 @@ export const CONFIG_DEFAULTS = {
   PROBE_STATUS_PATH: "/__probe/status",
   PROBE_RESET_PATH: "/__probe/reset",
   PROBE_ACTUATE_PATH: "/__probe/actuate",
+  PROBE_CAPTURE_PATH: "/__probe/capture",
   PROBE_WAIT_MAX_RETRIES: 1,
   PROBE_WAIT_MAX_RETRIES_MIN: 1,
   PROBE_WAIT_MAX_RETRIES_MAX: 10,

@@ -17,6 +17,12 @@ final class AgentConfig {
   final String actuatorId;
   final String actuateTargetKey;
   final boolean actuateReturnBoolean;
+  final boolean captureEnabled;
+  final int captureMaxKeys;
+  final int captureMaxArgs;
+  final int capturePreviewMaxChars;
+  final int captureStoredMaxChars;
+  final String captureRedactionMode;
   final List<String> includePatterns;
   final List<String> excludePatterns;
   private final List<Pattern> includeRegex;
@@ -29,6 +35,12 @@ final class AgentConfig {
       String actuatorId,
       String actuateTargetKey,
       boolean actuateReturnBoolean,
+      boolean captureEnabled,
+      int captureMaxKeys,
+      int captureMaxArgs,
+      int capturePreviewMaxChars,
+      int captureStoredMaxChars,
+      String captureRedactionMode,
       List<String> includePatterns,
       List<String> excludePatterns
   ) {
@@ -38,6 +50,12 @@ final class AgentConfig {
     this.actuatorId = actuatorId;
     this.actuateTargetKey = actuateTargetKey;
     this.actuateReturnBoolean = actuateReturnBoolean;
+    this.captureEnabled = captureEnabled;
+    this.captureMaxKeys = captureMaxKeys;
+    this.captureMaxArgs = captureMaxArgs;
+    this.capturePreviewMaxChars = capturePreviewMaxChars;
+    this.captureStoredMaxChars = captureStoredMaxChars;
+    this.captureRedactionMode = captureRedactionMode;
     this.includePatterns = includePatterns;
     this.excludePatterns = excludePatterns;
     this.includeRegex = compilePatterns(includePatterns);
@@ -53,6 +71,12 @@ final class AgentConfig {
     String actuatorId = readDefaultActuatorId();
     String actuateTargetKey = readDefaultActuateTargetKey();
     boolean actuateReturnBoolean = readDefaultActuateReturnBoolean();
+    boolean captureEnabled = readDefaultCaptureEnabled();
+    int captureMaxKeys = readDefaultCaptureMaxKeys();
+    int captureMaxArgs = readDefaultCaptureMaxArgs();
+    int capturePreviewMaxChars = readDefaultCapturePreviewMaxChars();
+    int captureStoredMaxChars = readDefaultCaptureStoredMaxChars();
+    String captureRedactionMode = readDefaultCaptureRedactionMode();
     List<String> includePatterns = parseCsv(readDefaultInclude());
     List<String> excludePatterns = parseCsv(readDefaultExclude());
 
@@ -88,6 +112,18 @@ final class AgentConfig {
                 || "returnBoolean".equalsIgnoreCase(k)
         ) {
           actuateReturnBoolean = parseBoolean(v, false);
+        } else if ("captureEnabled".equalsIgnoreCase(k) || "capture".equalsIgnoreCase(k)) {
+          captureEnabled = parseBoolean(v, true);
+        } else if ("captureMaxKeys".equalsIgnoreCase(k)) {
+          captureMaxKeys = parseInt(v, 1000, 10, 20_000);
+        } else if ("captureMaxArgs".equalsIgnoreCase(k)) {
+          captureMaxArgs = parseInt(v, 32, 1, 512);
+        } else if ("capturePreviewMaxChars".equalsIgnoreCase(k)) {
+          capturePreviewMaxChars = parseInt(v, 1024, 64, 65_536);
+        } else if ("captureStoredMaxChars".equalsIgnoreCase(k)) {
+          captureStoredMaxChars = parseInt(v, 16_384, 256, 524_288);
+        } else if ("captureRedactionMode".equalsIgnoreCase(k) || "captureRedaction".equalsIgnoreCase(k)) {
+          captureRedactionMode = normalizeCaptureRedactionMode(v);
         } else if (
             "include".equalsIgnoreCase(k)
                 || "includes".equalsIgnoreCase(k)
@@ -111,6 +147,14 @@ final class AgentConfig {
     mode = normalizeMode(mode);
     actuatorId = normalizeActuatorId(actuatorId);
     actuateTargetKey = normalizeTargetKey(actuateTargetKey);
+    captureMaxKeys = parseInt(String.valueOf(captureMaxKeys), 1000, 10, 20_000);
+    captureMaxArgs = parseInt(String.valueOf(captureMaxArgs), 32, 1, 512);
+    capturePreviewMaxChars = parseInt(String.valueOf(capturePreviewMaxChars), 1024, 64, 65_536);
+    captureStoredMaxChars = parseInt(String.valueOf(captureStoredMaxChars), 16_384, 256, 524_288);
+    captureRedactionMode = normalizeCaptureRedactionMode(captureRedactionMode);
+    if (captureStoredMaxChars < capturePreviewMaxChars) {
+      captureStoredMaxChars = capturePreviewMaxChars;
+    }
     if (!"actuate".equals(mode)) {
       actuatorId = "";
       actuateTargetKey = "";
@@ -122,6 +166,12 @@ final class AgentConfig {
         actuatorId,
         actuateTargetKey,
         actuateReturnBoolean,
+        captureEnabled,
+        captureMaxKeys,
+        captureMaxArgs,
+        capturePreviewMaxChars,
+        captureStoredMaxChars,
+        captureRedactionMode,
         includePatterns,
         excludePatterns
     );
@@ -169,6 +219,66 @@ final class AgentConfig {
     return false;
   }
 
+  private static boolean readDefaultCaptureEnabled() {
+    String fromProp = System.getProperty("mcp.probe.capture.enabled");
+    if (fromProp != null && !fromProp.trim().isEmpty()) return parseBoolean(fromProp, true);
+
+    String fromEnv = System.getenv("MCP_PROBE_CAPTURE_ENABLED");
+    if (fromEnv != null && !fromEnv.trim().isEmpty()) return parseBoolean(fromEnv, true);
+
+    return true;
+  }
+
+  private static int readDefaultCaptureMaxKeys() {
+    String fromProp = System.getProperty("mcp.probe.capture.max.keys");
+    if (fromProp != null && !fromProp.trim().isEmpty()) return parseInt(fromProp, 1000, 10, 20_000);
+
+    String fromEnv = System.getenv("MCP_PROBE_CAPTURE_MAX_KEYS");
+    if (fromEnv != null && !fromEnv.trim().isEmpty()) return parseInt(fromEnv, 1000, 10, 20_000);
+
+    return 1000;
+  }
+
+  private static int readDefaultCaptureMaxArgs() {
+    String fromProp = System.getProperty("mcp.probe.capture.max.args");
+    if (fromProp != null && !fromProp.trim().isEmpty()) return parseInt(fromProp, 32, 1, 512);
+
+    String fromEnv = System.getenv("MCP_PROBE_CAPTURE_MAX_ARGS");
+    if (fromEnv != null && !fromEnv.trim().isEmpty()) return parseInt(fromEnv, 32, 1, 512);
+
+    return 32;
+  }
+
+  private static int readDefaultCapturePreviewMaxChars() {
+    String fromProp = System.getProperty("mcp.probe.capture.preview.max.chars");
+    if (fromProp != null && !fromProp.trim().isEmpty()) return parseInt(fromProp, 1024, 64, 65_536);
+
+    String fromEnv = System.getenv("MCP_PROBE_CAPTURE_PREVIEW_MAX_CHARS");
+    if (fromEnv != null && !fromEnv.trim().isEmpty()) return parseInt(fromEnv, 1024, 64, 65_536);
+
+    return 1024;
+  }
+
+  private static int readDefaultCaptureStoredMaxChars() {
+    String fromProp = System.getProperty("mcp.probe.capture.stored.max.chars");
+    if (fromProp != null && !fromProp.trim().isEmpty()) return parseInt(fromProp, 16_384, 256, 524_288);
+
+    String fromEnv = System.getenv("MCP_PROBE_CAPTURE_STORED_MAX_CHARS");
+    if (fromEnv != null && !fromEnv.trim().isEmpty()) return parseInt(fromEnv, 16_384, 256, 524_288);
+
+    return 16_384;
+  }
+
+  private static String readDefaultCaptureRedactionMode() {
+    String fromProp = System.getProperty("mcp.probe.capture.redaction");
+    if (fromProp != null && !fromProp.trim().isEmpty()) return normalizeCaptureRedactionMode(fromProp);
+
+    String fromEnv = System.getenv("MCP_PROBE_CAPTURE_REDACTION");
+    if (fromEnv != null && !fromEnv.trim().isEmpty()) return normalizeCaptureRedactionMode(fromEnv);
+
+    return "basic";
+  }
+
   private static String normalizeMode(String raw) {
     if (raw == null) return "observe";
     String m = raw.trim().toLowerCase();
@@ -192,6 +302,25 @@ final class AgentConfig {
     if ("true".equals(v) || "1".equals(v) || "yes".equals(v) || "y".equals(v)) return true;
     if ("false".equals(v) || "0".equals(v) || "no".equals(v) || "n".equals(v)) return false;
     return defaultValue;
+  }
+
+  private static int parseInt(String raw, int defaultValue, int minValue, int maxValue) {
+    if (raw == null || raw.trim().isEmpty()) return defaultValue;
+    try {
+      int parsed = Integer.parseInt(raw.trim());
+      if (parsed < minValue) return minValue;
+      if (parsed > maxValue) return maxValue;
+      return parsed;
+    } catch (NumberFormatException ignored) {
+      return defaultValue;
+    }
+  }
+
+  private static String normalizeCaptureRedactionMode(String raw) {
+    if (raw == null) return "basic";
+    String mode = raw.trim().toLowerCase();
+    if ("off".equals(mode)) return "off";
+    return "basic";
   }
 
   private static String readDefaultInclude() {

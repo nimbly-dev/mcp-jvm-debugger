@@ -53,6 +53,7 @@ Optional env:
 - `MCP_WORKSPACE_ROOT`
 - `MCP_PROBE_STATUS_PATH` (default `"/__probe/status"`)
 - `MCP_PROBE_RESET_PATH` (default `"/__probe/reset"`)
+- `MCP_PROBE_CAPTURE_PATH` (default `"/__probe/capture"`)
 
 Reinstall:
 
@@ -87,6 +88,7 @@ Optional env:
 - `MCP_WORKSPACE_ROOT`
 - `MCP_PROBE_STATUS_PATH` (default `"/__probe/status"`)
 - `MCP_PROBE_RESET_PATH` (default `"/__probe/reset"`)
+- `MCP_PROBE_CAPTURE_PATH` (default `"/__probe/capture"`)
 
 </details>
 
@@ -119,6 +121,7 @@ Optional:
 - `MCP_WORKSPACE_ROOT`
 - `MCP_PROBE_STATUS_PATH` (default `"/__probe/status"`)
 - `MCP_PROBE_RESET_PATH` (default `"/__probe/reset"`)
+- `MCP_PROBE_CAPTURE_PATH` (default `"/__probe/capture"`)
 - `MCP_PROBE_WAIT_MAX_RETRIES` (default `1`, max `10`)
 - `MCP_PROBE_WAIT_UNREACHABLE_RETRY_ENABLED` (default `false`)
 - `MCP_PROBE_WAIT_UNREACHABLE_MAX_RETRIES` (default `3`, max `10`)
@@ -135,6 +138,7 @@ Optional:
 - `target_infer`
 - `recipe_generate`
 - `probe_status`
+- `probe_capture_get`
 - `probe_reset`
 - `probe_wait_hit`
 - `probe_actuate`

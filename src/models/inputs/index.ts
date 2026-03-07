@@ -1,5 +1,6 @@
 export { ProjectsDiscoverInputSchema } from "./projects_discover.input.model";
 export { ProbeDiagnoseInputSchema } from "./probe_diagnose.input.model";
+export { ProbeCaptureGetInputSchema } from "./probe_capture_get.input.model";
 export { TargetInferInputSchema } from "./target_infer.input.model";
 export { RecipeGenerateInputSchema } from "./recipe_generate.input.model";
 export { ProbeStatusInputSchema } from "./probe_status.input.model";
