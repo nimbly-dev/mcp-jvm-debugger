@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Map;
 
 final class ProbeHttpServer {
+  private static final String CONTRACT_VERSION = "0.1.0v";
+
   private final HttpServer server;
 
   private ProbeHttpServer(HttpServer server) {
@@ -29,6 +31,7 @@ final class ProbeHttpServer {
     server.createContext("/__probe/status", new StatusHandler());
     server.createContext("/__probe/reset", new ResetHandler());
     server.createContext("/__probe/actuate", new ActuateHandler());
+    server.createContext("/__probe/capture", new CaptureHandler());
     server.setExecutor(null);
     server.start();
     return new ProbeHttpServer(server);
@@ -53,29 +56,7 @@ final class ProbeHttpServer {
           writeJson(exchange, 400, "{\"error\":\"missing_key\"}");
           return;
         }
-        long hitCount = ProbeRuntime.getCount(key);
-        long lastHitEpochMs = ProbeRuntime.getLastHitEpochMs(key);
-        String mode = ProbeRuntime.getMode();
-        String actuatorId = ProbeRuntime.getActuatorId();
-        String actuateTargetKey = ProbeRuntime.getActuateTargetKey();
-        boolean actuateReturnBoolean = ProbeRuntime.getActuateReturnBoolean();
-        boolean includeLineValidation = ProbeRuntime.isLineKey(key);
-        boolean lineResolvable = includeLineValidation && ProbeRuntime.isLineResolvableKey(key);
-        String body =
-            "{"
-                + "\"key\":\"" + esc(key) + "\","
-                + "\"hitCount\":" + hitCount + ","
-                + "\"lastHitEpochMs\":" + lastHitEpochMs + ","
-                + "\"mode\":\"" + esc(mode) + "\","
-                + "\"actuatorId\":\"" + esc(actuatorId) + "\","
-                + "\"actuateTargetKey\":\"" + esc(actuateTargetKey) + "\","
-                + "\"actuateReturnBoolean\":" + actuateReturnBoolean
-                + (includeLineValidation
-                ? ",\"lineResolvable\":" + lineResolvable
-                + ",\"lineValidation\":\"" + (lineResolvable ? "resolvable" : "invalid_line_target") + "\""
-                : "")
-                + "}";
-        writeJson(exchange, 200, body);
+        writeJson(exchange, 200, buildStatusEnvelopeJson(key));
         return;
       }
 
@@ -85,12 +66,14 @@ final class ProbeHttpServer {
         writeJson(exchange, 400, "{\"error\":\"missing_keys\"}");
         return;
       }
+
       List<String> rows = new ArrayList<>();
       for (String key : keys) {
-        rows.add(buildStatusRowJson(key));
+        rows.add("{\"ok\":true," + buildStatusBodyJson(key) + "}");
       }
       String body =
           "{"
+              + "\"contractVersion\":\"" + esc(CONTRACT_VERSION) + "\","
               + "\"ok\":true,"
               + "\"count\":" + rows.size() + ","
               + "\"results\":[" + String.join(",", rows) + "]"
@@ -133,6 +116,7 @@ final class ProbeHttpServer {
         ProbeRuntime.reset(key);
         String body =
             "{"
+                + "\"contractVersion\":\"" + esc(CONTRACT_VERSION) + "\","
                 + "\"ok\":true,"
                 + "\"key\":\"" + esc(key) + "\""
                 + (includeLineValidation
@@ -154,6 +138,7 @@ final class ProbeHttpServer {
       }
       String body =
           "{"
+              + "\"contractVersion\":\"" + esc(CONTRACT_VERSION) + "\","
               + "\"ok\":true,"
               + "\"selector\":\"" + (hasClass ? "className" : "keys") + "\","
               + (hasClass ? "\"className\":\"" + esc(className.trim()) + "\"," : "")
@@ -195,6 +180,7 @@ final class ProbeHttpServer {
 
       String response =
           "{"
+              + "\"contractVersion\":\"" + esc(CONTRACT_VERSION) + "\","
               + "\"ok\":true,"
               + "\"mode\":\"" + esc(ProbeRuntime.getMode()) + "\","
               + "\"actuatorId\":\"" + esc(ProbeRuntime.getActuatorId()) + "\","
@@ -203,6 +189,138 @@ final class ProbeHttpServer {
               + "}";
       writeJson(exchange, 200, response);
     }
+  }
+
+  private static final class CaptureHandler implements HttpHandler {
+    @Override
+    public void handle(HttpExchange exchange) throws IOException {
+      if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+        writeJson(exchange, 405, "{\"error\":\"method_not_allowed\"}");
+        return;
+      }
+      String captureId = queryParam(exchange.getRequestURI(), "captureId");
+      if (captureId == null || captureId.isBlank()) {
+        writeJson(exchange, 400, "{\"error\":\"missing_capture_id\"}");
+        return;
+      }
+      ProbeRuntime.CaptureRecordView capture = ProbeRuntime.getCaptureById(captureId.trim());
+      if (capture == null) {
+        writeJson(
+            exchange,
+            404,
+            "{"
+                + "\"contractVersion\":\"" + esc(CONTRACT_VERSION) + "\","
+                + "\"error\":\"capture_not_found\","
+                + "\"captureId\":\"" + esc(captureId.trim()) + "\""
+                + "}"
+        );
+        return;
+      }
+      String body =
+          "{"
+              + "\"contractVersion\":\"" + esc(CONTRACT_VERSION) + "\","
+              + "\"capture\":" + buildCaptureRecordJson(capture)
+              + "}";
+      writeJson(exchange, 200, body);
+    }
+  }
+
+  private static String buildStatusEnvelopeJson(String key) {
+    return "{"
+        + "\"contractVersion\":\"" + esc(CONTRACT_VERSION) + "\","
+        + buildStatusBodyJson(key)
+        + "}";
+  }
+
+  private static String buildStatusBodyJson(String key) {
+    long hitCount = ProbeRuntime.getCount(key);
+    long lastHitEpochMs = ProbeRuntime.getLastHitEpochMs(key);
+    boolean includeLineValidation = ProbeRuntime.isLineKey(key);
+    boolean lineResolvable = includeLineValidation && ProbeRuntime.isLineResolvableKey(key);
+
+    ProbeRuntime.CapturePreviewView capturePreview = ProbeRuntime.getCapturePreviewForKey(key);
+
+    String probeJson =
+        "{"
+            + "\"key\":\"" + esc(key) + "\","
+            + "\"hitCount\":" + hitCount + ","
+            + "\"lastHitEpochMs\":" + lastHitEpochMs
+            + (includeLineValidation
+            ? ",\"lineResolvable\":" + lineResolvable
+            + ",\"lineValidation\":\"" + (lineResolvable ? "resolvable" : "invalid_line_target") + "\""
+            : "")
+            + "}";
+
+    String runtimeJson =
+        "{"
+            + "\"mode\":\"" + esc(ProbeRuntime.getMode()) + "\","
+            + "\"actuatorId\":\"" + esc(ProbeRuntime.getActuatorId()) + "\","
+            + "\"actuateTargetKey\":\"" + esc(ProbeRuntime.getActuateTargetKey()) + "\","
+            + "\"actuateReturnBoolean\":" + ProbeRuntime.getActuateReturnBoolean()
+            + "}";
+
+    return "\"probe\":" + probeJson + ","
+        + "\"capturePreview\":" + buildCapturePreviewJson(capturePreview) + ","
+        + "\"runtime\":" + runtimeJson;
+  }
+
+  private static String buildCapturePreviewJson(ProbeRuntime.CapturePreviewView preview) {
+    if (preview == null || !preview.available) {
+      String redactionMode = preview == null ? ProbeRuntime.getCaptureRedactionMode() : preview.redactionMode;
+      return "{"
+          + "\"available\":false,"
+          + "\"redactionMode\":\"" + esc(redactionMode) + "\""
+          + "}";
+    }
+
+    return "{"
+        + "\"available\":true,"
+        + "\"captureId\":\"" + esc(preview.captureId) + "\","
+        + "\"methodKey\":\"" + esc(preview.methodKey) + "\","
+        + "\"capturedAtEpochMs\":" + preview.capturedAtEpochMs + ","
+        + "\"redactionMode\":\"" + esc(preview.redactionMode) + "\","
+        + "\"argsPreview\":" + buildCaptureValuesJson(preview.argsPreview) + ","
+        + "\"returnPreview\":" + buildNullableCaptureValueJson(preview.returnPreview) + ","
+        + "\"thrownPreview\":" + buildNullableCaptureValueJson(preview.thrownPreview) + ","
+        + "\"truncatedAny\":" + preview.truncatedAny
+        + "}";
+  }
+
+  private static String buildCaptureRecordJson(ProbeRuntime.CaptureRecordView capture) {
+    return "{"
+        + "\"captureId\":\"" + esc(capture.captureId) + "\","
+        + "\"methodKey\":\"" + esc(capture.methodKey) + "\","
+        + "\"capturedAtEpochMs\":" + capture.capturedAtEpochMs + ","
+        + "\"redactionMode\":\"" + esc(capture.redactionMode) + "\","
+        + "\"args\":" + buildCaptureValuesJson(capture.args) + ","
+        + "\"returnValue\":" + buildNullableCaptureValueJson(capture.returnValue) + ","
+        + "\"thrownValue\":" + buildNullableCaptureValueJson(capture.thrownValue) + ","
+        + "\"truncatedAny\":" + capture.truncatedAny
+        + "}";
+  }
+
+  private static String buildCaptureValuesJson(List<ProbeRuntime.CaptureValueView> values) {
+    if (values == null || values.isEmpty()) return "[]";
+    List<String> rows = new ArrayList<>();
+    for (int i = 0; i < values.size(); i++) {
+      rows.add("{"
+          + "\"index\":" + i + ","
+          + buildCaptureValueBodyJson(values.get(i))
+          + "}");
+    }
+    return "[" + String.join(",", rows) + "]";
+  }
+
+  private static String buildNullableCaptureValueJson(ProbeRuntime.CaptureValueView value) {
+    if (value == null) return "null";
+    return "{" + buildCaptureValueBodyJson(value) + "}";
+  }
+
+  private static String buildCaptureValueBodyJson(ProbeRuntime.CaptureValueView value) {
+    return "\"value\":\"" + esc(value.value) + "\","
+        + "\"truncated\":" + value.truncated + ","
+        + "\"originalLength\":" + value.originalLength + ","
+        + "\"redacted\":" + value.redacted;
   }
 
   private static String queryParam(URI uri, String key) {
@@ -291,25 +409,6 @@ final class ProbeHttpServer {
     return new ArrayList<>(out);
   }
 
-  private static String buildStatusRowJson(String key) {
-    long hitCount = ProbeRuntime.getCount(key);
-    long lastHitEpochMs = ProbeRuntime.getLastHitEpochMs(key);
-    String mode = ProbeRuntime.getMode();
-    boolean includeLineValidation = ProbeRuntime.isLineKey(key);
-    boolean lineResolvable = includeLineValidation && ProbeRuntime.isLineResolvableKey(key);
-    return "{"
-        + "\"ok\":true,"
-        + "\"key\":\"" + esc(key) + "\","
-        + "\"hitCount\":" + hitCount + ","
-        + "\"lastHitEpochMs\":" + lastHitEpochMs + ","
-        + "\"mode\":\"" + esc(mode) + "\""
-        + (includeLineValidation
-        ? ",\"lineResolvable\":" + lineResolvable
-        + ",\"lineValidation\":\"" + (lineResolvable ? "resolvable" : "invalid_line_target") + "\""
-        : "")
-        + "}";
-  }
-
   private static String buildResetRowJson(String key) {
     boolean includeLineValidation = ProbeRuntime.isLineKey(key);
     boolean lineResolvable = includeLineValidation && ProbeRuntime.isLineResolvableKey(key);
@@ -328,7 +427,7 @@ final class ProbeHttpServer {
   }
 
   private static String esc(String s) {
-    return s.replace("\\", "\\\\").replace("\"", "\\\"");
+    return ProbeRuntime.escJson(s == null ? "" : s);
   }
 
   private static void writeJson(HttpExchange exchange, int statusCode, String body) throws IOException {
