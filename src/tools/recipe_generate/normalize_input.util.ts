@@ -14,7 +14,6 @@ export type NormalizedRecipeGenerateInput = {
   actuationEnabled: boolean;
   actuationReturnBoolean?: boolean;
   actuationActuatorId?: string;
-  authLoginDiscoveryEnabled: boolean;
 };
 
 export function normalizeRecipeGenerateInput(args: {
@@ -31,7 +30,6 @@ export function normalizeRecipeGenerateInput(args: {
   actuationEnabled?: boolean;
   actuationReturnBoolean?: boolean;
   actuationActuatorId?: string;
-  authLoginDiscoveryEnabled: boolean;
 }): NormalizedRecipeGenerateInput {
   return {
     rootAbs: args.rootAbs,
@@ -49,6 +47,5 @@ export function normalizeRecipeGenerateInput(args: {
       ? { actuationReturnBoolean: args.actuationReturnBoolean }
       : {}),
     ...(args.actuationActuatorId ? { actuationActuatorId: args.actuationActuatorId } : {}),
-    authLoginDiscoveryEnabled: args.authLoginDiscoveryEnabled,
   };
 }

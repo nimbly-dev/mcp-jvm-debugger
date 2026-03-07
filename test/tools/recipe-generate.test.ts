@@ -19,7 +19,6 @@ test("uses request fallback when target is not inferred in regression_api_only m
       classHint: "SynonymRuleController",
       methodHint: "addSynonymRuleStages",
       intentMode: "regression_api_only",
-      authLoginDiscoveryEnabled: false,
     },
     {
       inferTargetsFn: async () => ({
@@ -59,7 +58,6 @@ test("keeps target_not_inferred for probe mode when strict line target is unavai
       methodHint: "addSynonymRuleStages",
       lineHint: 88,
       intentMode: "single_line_probe",
-      authLoginDiscoveryEnabled: false,
     },
     {
       inferTargetsFn: async () => ({
@@ -97,7 +95,6 @@ test("reports request_inference failure when target is inferred but request cand
       classHint: "SynonymRuleController",
       methodHint: "addSynonymRuleStages",
       intentMode: "regression_api_only",
-      authLoginDiscoveryEnabled: false,
     },
     {
       inferTargetsFn: async () => ({
@@ -134,7 +131,6 @@ test("reports auth_resolution when request exists but auth input is still requir
       classHint: "SynonymRuleController",
       methodHint: "addSynonymRuleStages",
       intentMode: "regression_api_only",
-      authLoginDiscoveryEnabled: false,
     },
     {
       inferTargetsFn: async () => ({

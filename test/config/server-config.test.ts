@@ -7,9 +7,6 @@ const { loadConfigFromEnvAndArgs } = require("../../src/config/server-config");
 
 const MANAGED_ENV_NAMES = [
   MCP_ENV.PROBE_BASE_URL,
-  MCP_ENV.PROBE_STATUS_PATH,
-  MCP_ENV.PROBE_RESET_PATH,
-  MCP_ENV.PROBE_CAPTURE_PATH,
   MCP_ENV.PROBE_WAIT_UNREACHABLE_RETRY_ENABLED,
   MCP_ENV.PROBE_WAIT_UNREACHABLE_MAX_RETRIES,
 ] as const;
@@ -44,12 +41,10 @@ function withEnv(
   }
 }
 
-test("loads with only base URL and applies shared defaults for status/reset paths", () => {
+test("loads with only base URL and applies fixed probe path defaults", () => {
   withEnv(
     {
       [MCP_ENV.PROBE_BASE_URL]: "http://127.0.0.1:9193",
-      [MCP_ENV.PROBE_STATUS_PATH]: undefined,
-      [MCP_ENV.PROBE_RESET_PATH]: undefined,
     },
     () => {
       const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
@@ -68,56 +63,59 @@ test("loads with only base URL and applies shared defaults for status/reset path
   );
 });
 
-test("applies optional env overrides for status/reset paths", () => {
-  withEnv(
-    {
-      [MCP_ENV.PROBE_BASE_URL]: "http://127.0.0.1:9193",
-      [MCP_ENV.PROBE_STATUS_PATH]: "/custom/status",
-      [MCP_ENV.PROBE_RESET_PATH]: "/custom/reset",
-      [MCP_ENV.PROBE_CAPTURE_PATH]: "/custom/capture",
-    },
-    () => {
-      const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
-      assert.equal(cfg.probeStatusPath, "/custom/status");
-      assert.equal(cfg.probeResetPath, "/custom/reset");
-      assert.equal(cfg.probeCapturePath, "/custom/capture");
-    },
-  );
-});
+test("ignores legacy probe path env vars and CLI path flags", () => {
+  const legacyNames = [
+    "MCP_PROBE_STATUS_PATH",
+    "MCP_PROBE_RESET_PATH",
+    "MCP_PROBE_CAPTURE_PATH",
+  ] as const;
+  const before = {
+    MCP_PROBE_STATUS_PATH: process.env.MCP_PROBE_STATUS_PATH,
+    MCP_PROBE_RESET_PATH: process.env.MCP_PROBE_RESET_PATH,
+    MCP_PROBE_CAPTURE_PATH: process.env.MCP_PROBE_CAPTURE_PATH,
+  };
 
-test("CLI overrides take precedence over env values for status/reset paths", () => {
-  withEnv(
-    {
-      [MCP_ENV.PROBE_BASE_URL]: "http://127.0.0.1:9193",
-      [MCP_ENV.PROBE_STATUS_PATH]: "/env/status",
-      [MCP_ENV.PROBE_RESET_PATH]: "/env/reset",
-      [MCP_ENV.PROBE_CAPTURE_PATH]: "/env/capture",
-    },
-    () => {
-      const cfg = loadConfigFromEnvAndArgs([
-        "node",
-        "server",
-        "--probe-status-path",
-        "/cli/status",
-        "--probe-reset-path",
-        "/cli/reset",
-        "--probe-capture-path",
-        "/cli/capture",
-      ]);
-      assert.equal(cfg.probeStatusPath, "/cli/status");
-      assert.equal(cfg.probeResetPath, "/cli/reset");
-      assert.equal(cfg.probeCapturePath, "/cli/capture");
-    },
-  );
+  try {
+    withEnv(
+      {
+        [MCP_ENV.PROBE_BASE_URL]: "http://127.0.0.1:9193",
+      },
+      () => {
+        process.env.MCP_PROBE_STATUS_PATH = "/legacy/status";
+        process.env.MCP_PROBE_RESET_PATH = "/legacy/reset";
+        process.env.MCP_PROBE_CAPTURE_PATH = "/legacy/capture";
+
+        const cfg = loadConfigFromEnvAndArgs([
+          "node",
+          "server",
+          "--probe-status-path",
+          "/cli/status",
+          "--probe-reset-path",
+          "/cli/reset",
+          "--probe-capture-path",
+          "/cli/capture",
+        ]);
+        assert.equal(cfg.probeStatusPath, CONFIG_DEFAULTS.PROBE_STATUS_PATH);
+        assert.equal(cfg.probeResetPath, CONFIG_DEFAULTS.PROBE_RESET_PATH);
+        assert.equal(cfg.probeCapturePath, CONFIG_DEFAULTS.PROBE_CAPTURE_PATH);
+      },
+    );
+  } finally {
+    for (const name of legacyNames) {
+      const prev = before[name];
+      if (typeof prev === "undefined") {
+        delete process.env[name];
+      } else {
+        process.env[name] = prev;
+      }
+    }
+  }
 });
 
 test("missing base URL error does not mention status/reset path env vars", () => {
   withEnv(
     {
       [MCP_ENV.PROBE_BASE_URL]: undefined,
-      [MCP_ENV.PROBE_STATUS_PATH]: undefined,
-      [MCP_ENV.PROBE_RESET_PATH]: undefined,
-      [MCP_ENV.PROBE_CAPTURE_PATH]: undefined,
     },
     () => {
       assert.throws(
@@ -128,64 +126,6 @@ test("missing base URL error does not mention status/reset path env vars", () =>
           assert.doesNotMatch(err.message, /MCP_PROBE_STATUS_PATH/);
           assert.doesNotMatch(err.message, /MCP_PROBE_RESET_PATH/);
           assert.doesNotMatch(err.message, /MCP_PROBE_CAPTURE_PATH/);
-          return true;
-        },
-      );
-    },
-  );
-});
-
-test("blank status/reset env values are treated as unset and fall back to defaults", () => {
-  withEnv(
-    {
-      [MCP_ENV.PROBE_BASE_URL]: "http://127.0.0.1:9193",
-      [MCP_ENV.PROBE_STATUS_PATH]: "   ",
-      [MCP_ENV.PROBE_RESET_PATH]: "\t",
-      [MCP_ENV.PROBE_CAPTURE_PATH]: "   ",
-    },
-    () => {
-      const cfg = loadConfigFromEnvAndArgs(["node", "server"]);
-      assert.equal(cfg.probeStatusPath, CONFIG_DEFAULTS.PROBE_STATUS_PATH);
-      assert.equal(cfg.probeResetPath, CONFIG_DEFAULTS.PROBE_RESET_PATH);
-      assert.equal(cfg.probeCapturePath, CONFIG_DEFAULTS.PROBE_CAPTURE_PATH);
-    },
-  );
-});
-
-test("rejects invalid status path that does not start with slash", () => {
-  withEnv(
-    {
-      [MCP_ENV.PROBE_BASE_URL]: "http://127.0.0.1:9193",
-      [MCP_ENV.PROBE_STATUS_PATH]: "invalid-status-path",
-      [MCP_ENV.PROBE_RESET_PATH]: undefined,
-    },
-    () => {
-      assert.throws(
-        () => loadConfigFromEnvAndArgs(["node", "server"]),
-        (err: any) => {
-          assert.ok(err instanceof Error);
-          assert.match(err.message, /MCP_PROBE_STATUS_PATH/);
-          assert.match(err.message, /must start with '\/'/);
-          return true;
-        },
-      );
-    },
-  );
-});
-
-test("rejects invalid capture path that does not start with slash", () => {
-  withEnv(
-    {
-      [MCP_ENV.PROBE_BASE_URL]: "http://127.0.0.1:9193",
-      [MCP_ENV.PROBE_CAPTURE_PATH]: "invalid-capture-path",
-    },
-    () => {
-      assert.throws(
-        () => loadConfigFromEnvAndArgs(["node", "server"]),
-        (err: any) => {
-          assert.ok(err instanceof Error);
-          assert.match(err.message, /MCP_PROBE_CAPTURE_PATH/);
-          assert.match(err.message, /must start with '\/'/);
           return true;
         },
       );
