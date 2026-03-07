@@ -88,7 +88,6 @@ async function main() {
           hasCustomTemplate: false,
         },
         auth: {
-          loginDiscoveryEnabled: cfg.authLoginDiscoveryEnabled,
           credentialDiscovery: "disabled",
         },
         time: new Date().toISOString(),
@@ -715,7 +714,6 @@ async function main() {
         classHint,
         methodHint,
         intentMode,
-        authLoginDiscoveryEnabled: cfg.authLoginDiscoveryEnabled,
       };
       if (typeof lineHint === "number") generateArgs.lineHint = lineHint;
       if (authToken) generateArgs.authToken = authToken;

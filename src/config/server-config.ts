@@ -14,7 +14,6 @@ export type ServerConfig = {
   probeWaitMaxRetries: number;
   probeWaitUnreachableRetryEnabled: boolean;
   probeWaitUnreachableMaxRetries: number;
-  authLoginDiscoveryEnabled: boolean;
 };
 
 export class ServerConfigLoader {
@@ -42,22 +41,9 @@ export class ServerConfigLoader {
 
     const probeBaseUrl = this.args.get("--probe-base-url") ?? this.env(MCP_ENV.PROBE_BASE_URL);
 
-    const probeStatusPath = this.resolveProbePath(
-      this.args.get("--probe-status-path"),
-      MCP_ENV.PROBE_STATUS_PATH,
-      CONFIG_DEFAULTS.PROBE_STATUS_PATH,
-    );
-
-    const probeResetPath = this.resolveProbePath(
-      this.args.get("--probe-reset-path"),
-      MCP_ENV.PROBE_RESET_PATH,
-      CONFIG_DEFAULTS.PROBE_RESET_PATH,
-    );
-    const probeCapturePath = this.resolveProbePath(
-      this.args.get("--probe-capture-path"),
-      MCP_ENV.PROBE_CAPTURE_PATH,
-      CONFIG_DEFAULTS.PROBE_CAPTURE_PATH,
-    );
+    const probeStatusPath = CONFIG_DEFAULTS.PROBE_STATUS_PATH;
+    const probeResetPath = CONFIG_DEFAULTS.PROBE_RESET_PATH;
+    const probeCapturePath = CONFIG_DEFAULTS.PROBE_CAPTURE_PATH;
 
     const probeWaitMaxRetries = this.parseIntFlag(
       this.args.get("--probe-wait-max-retries") ?? this.env(MCP_ENV.PROBE_WAIT_MAX_RETRIES),
@@ -74,12 +60,6 @@ export class ServerConfigLoader {
       CONFIG_DEFAULTS.PROBE_WAIT_UNREACHABLE_MAX_RETRIES,
       CONFIG_DEFAULTS.PROBE_WAIT_UNREACHABLE_MAX_RETRIES_MIN,
       CONFIG_DEFAULTS.PROBE_WAIT_UNREACHABLE_MAX_RETRIES_MAX,
-    );
-
-    const authLoginDiscoveryEnabled = this.parseBooleanFlag(
-      this.args.get("--auth-login-discovery-enabled") ??
-        this.env(MCP_ENV.AUTH_LOGIN_DISCOVERY_ENABLED),
-      CONFIG_DEFAULTS.AUTH_LOGIN_DISCOVERY_ENABLED,
     );
 
     const missing: string[] = [];
@@ -104,7 +84,6 @@ export class ServerConfigLoader {
       probeWaitMaxRetries,
       probeWaitUnreachableRetryEnabled,
       probeWaitUnreachableMaxRetries,
-      authLoginDiscoveryEnabled,
     };
   }
 
@@ -133,34 +112,6 @@ export class ServerConfigLoader {
     if (n < min) return min;
     if (n > max) return max;
     return n;
-  }
-
-  private resolveProbePath(
-    argValue: string | undefined,
-    envVar: McpEnvVar,
-    defaultValue: string,
-  ): string {
-    const raw = this.firstNonEmpty(argValue, this.env(envVar)) ?? defaultValue;
-    this.validateProbePath(raw, envVar);
-    return raw;
-  }
-
-  private firstNonEmpty(...values: Array<string | undefined>): string | undefined {
-    for (const value of values) {
-      if (typeof value !== "string") continue;
-      const trimmed = value.trim();
-      if (trimmed.length > 0) return trimmed;
-    }
-    return undefined;
-  }
-
-  private validateProbePath(pathValue: string, envVar: McpEnvVar): void {
-    if (!pathValue.startsWith("/")) {
-      throw new Error(
-        `Invalid ${envVar}='${pathValue}'. ` +
-          "Probe path must start with '/' (example: /__probe/status).",
-      );
-    }
   }
 
   private detectSessionWorkspaceRoot(): string | undefined {

@@ -96,7 +96,6 @@ export async function generateRecipe(
     actuationEnabled?: boolean;
     actuationReturnBoolean?: boolean;
     actuationActuatorId?: string;
-    authLoginDiscoveryEnabled: boolean;
   },
   deps: GenerateRecipeDeps = {},
 ): Promise<GenerateRecipeResult> {
@@ -167,7 +166,6 @@ export async function generateRecipe(
           authToken: normalized.authToken,
           authUsername: normalized.authUsername,
           authPassword: normalized.authPassword,
-          loginDiscoveryEnabled: normalized.authLoginDiscoveryEnabled,
         })
       : top
         ? buildMissingRouteAuth()
