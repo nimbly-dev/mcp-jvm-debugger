@@ -1,0 +1,83 @@
+const assert = require("node:assert/strict");
+const test = require("node:test");
+
+const {
+  enrichRuntimeCapture,
+} = require("../../src/tools/recipe_generate/runtime_capture_enrich.util");
+
+test("enrichRuntimeCapture returns unavailable when key/line is missing", async () => {
+  const out = await enrichRuntimeCapture({
+    inferredKey: undefined,
+    inferredLine: undefined,
+    probeBaseUrl: "http://127.0.0.1:9191",
+    probeStatusPath: "/__probe/status",
+  });
+  assert.equal(out.status, "unavailable");
+  assert.equal(out.reason, "probe_key_or_line_missing");
+});
+
+test("enrichRuntimeCapture returns available when capturePreview is present", async () => {
+  const out = await enrichRuntimeCapture({
+    inferredKey: "com.example.Catalog#save",
+    inferredLine: 88,
+    probeBaseUrl: "http://127.0.0.1:9191",
+    probeStatusPath: "/__probe/status",
+    probeStatusFn: async () => ({
+      content: [{ type: "text", text: "{}" }],
+      structuredContent: {
+        response: {
+          status: 200,
+          json: {
+            contractVersion: "0.1.0v",
+            hitCount: 1,
+            capturePreview: {
+              available: true,
+              captureId: "abc123",
+            },
+          },
+        },
+      },
+    }),
+  });
+  assert.equal(out.status, "available");
+  assert.equal(out.capturePreview.captureId, "abc123");
+});
+
+test("enrichRuntimeCapture returns not_captured_yet when preview is absent", async () => {
+  const out = await enrichRuntimeCapture({
+    inferredKey: "com.example.Catalog#save",
+    inferredLine: 88,
+    probeBaseUrl: "http://127.0.0.1:9191",
+    probeStatusPath: "/__probe/status",
+    probeStatusFn: async () => ({
+      content: [{ type: "text", text: "{}" }],
+      structuredContent: {
+        response: {
+          status: 200,
+          json: {
+            hitCount: 1,
+            capturePreview: {
+              available: false,
+            },
+          },
+        },
+      },
+    }),
+  });
+  assert.equal(out.status, "not_captured_yet");
+  assert.equal(out.reason, "status_checked_but_capture_unavailable");
+});
+
+test("enrichRuntimeCapture returns unavailable on probe status errors", async () => {
+  const out = await enrichRuntimeCapture({
+    inferredKey: "com.example.Catalog#save",
+    inferredLine: 88,
+    probeBaseUrl: "http://127.0.0.1:9191",
+    probeStatusPath: "/__probe/status",
+    probeStatusFn: async () => {
+      throw new Error("unreachable");
+    },
+  });
+  assert.equal(out.status, "unavailable");
+  assert.equal(out.reason, "unreachable");
+});

@@ -10,6 +10,7 @@ import { renderRecipeTemplate } from "./lib/recipe_template";
 import { buildRecipeTemplateModel } from "./models/recipe_output_model";
 import {
   ProbeDiagnoseInputSchema,
+  ProbeCaptureGetInputSchema,
   ProbeActuateInputSchema,
   ProbeResetInputSchema,
   ProbeStatusInputSchema,
@@ -22,8 +23,9 @@ import { clampInt } from "./lib/safety";
 import { discoverProjects } from "./tools/projects_discover";
 import { probeDiagnose } from "./tools/probe_diagnose";
 import { generateRecipe } from "./tools/recipe_generate";
+import { enrichRuntimeCapture } from "./tools/recipe_generate/runtime_capture_enrich.util";
 import { inferTargets, discoverClassMethods } from "./tools/target_infer";
-import { probeReset, probeActuate, probeStatus, probeWaitHit } from "./tools/probe";
+import { probeReset, probeActuate, probeStatus, probeWaitHit, probeCaptureGet } from "./tools/probe";
 import { buildRoutingContext, resolveSelectedMode } from "./utils/recipe_intent_routing.util";
 import { resolveProjectForInference } from "./utils/project_resolution.util";
 
@@ -33,6 +35,7 @@ async function main() {
   const PROBE_STATUS_PATH = cfg.probeStatusPath;
   const PROBE_RESET_PATH = cfg.probeResetPath;
   const PROBE_ACTUATE_PATH = CONFIG_DEFAULTS.PROBE_ACTUATE_PATH;
+  const PROBE_CAPTURE_PATH = cfg.probeCapturePath;
 
   const server = new McpServer({
     name: "mcp-jvm-debugger",
@@ -76,6 +79,7 @@ async function main() {
           statusPath: PROBE_STATUS_PATH,
           resetPath: PROBE_RESET_PATH,
           actuatePath: PROBE_ACTUATE_PATH,
+          capturePath: PROBE_CAPTURE_PATH,
           waitMaxRetriesDefault: cfg.probeWaitMaxRetries,
           waitUnreachableRetryEnabled: cfg.probeWaitUnreachableRetryEnabled,
           waitUnreachableMaxRetries: cfg.probeWaitUnreachableMaxRetries,
@@ -735,6 +739,20 @@ async function main() {
       const template = hasExplicitTemplate ? outputTemplate : undefined;
       const rendered = template ? renderRecipeTemplate(template, model) : undefined;
 
+      const inferredKey = generated.inferredTarget?.key;
+      const inferredLine =
+        typeof lineHint === "number"
+          ? lineHint
+          : typeof generated.inferredTarget?.line === "number"
+            ? generated.inferredTarget.line
+            : undefined;
+      const runtimeCapture = await enrichRuntimeCapture({
+        ...(inferredKey ? { inferredKey } : {}),
+        ...(typeof inferredLine === "number" ? { inferredLine } : {}),
+        probeBaseUrl: cfg.probeBaseUrl,
+        probeStatusPath: PROBE_STATUS_PATH,
+      });
+
       const structuredContent = {
         workspaceRoot: resolvedProject.workspaceRootAbs,
         projectRoot: resolvedProject.projectRootAbs,
@@ -790,6 +808,7 @@ async function main() {
         inferenceDiagnostics: generated.inferenceDiagnostics,
         auth: generated.auth,
         notes: generated.notes,
+        runtimeCapture,
         ...(rendered ? { rendered } : {}),
       };
       const internalContent = {
@@ -812,6 +831,7 @@ async function main() {
         executionPlan: generated.executionPlan,
         auth: generated.auth,
         notes: generated.notes,
+        runtimeCapture,
       };
       return {
         content: [
@@ -843,6 +863,24 @@ async function main() {
       if (typeof returnBoolean === "boolean") args.returnBoolean = returnBoolean;
       if (typeof timeoutMs === "number") args.timeoutMs = timeoutMs;
       return await probeActuate(args);
+    },
+  );
+
+  server.registerTool(
+    "probe_capture_get",
+    {
+      description:
+        "Fetch full runtime capture payload by captureId emitted by probe_status capturePreview.",
+      inputSchema: ProbeCaptureGetInputSchema,
+    },
+    async ({ captureId, baseUrl, timeoutMs }) => {
+      const args: Parameters<typeof probeCaptureGet>[0] = {
+        captureId,
+        baseUrl: baseUrl ?? cfg.probeBaseUrl,
+        capturePath: PROBE_CAPTURE_PATH,
+      };
+      if (typeof timeoutMs === "number") args.timeoutMs = timeoutMs;
+      return await probeCaptureGet(args);
     },
   );
 

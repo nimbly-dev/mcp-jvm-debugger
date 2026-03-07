@@ -47,7 +47,12 @@ export async function probeDiagnose(args: {
 
   try {
     const status = await fetchJson(statusUrl.toString(), { method: "GET", timeoutMs });
-    const responseKey = typeof status.json?.key === "string" ? status.json.key : undefined;
+    const responseKey =
+      typeof status.json?.probe?.key === "string"
+        ? status.json.probe.key
+        : typeof status.json?.key === "string"
+          ? status.json.key
+          : undefined;
     const decodeOk = responseKey === probeKey;
     checks.status = {
       ok: status.status >= 200 && status.status < 300,

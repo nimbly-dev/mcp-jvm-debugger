@@ -19,6 +19,14 @@ public final class ProbeAgent {
   public static void premain(String agentArgs, Instrumentation inst) {
     AgentConfig cfg = AgentConfig.fromAgentArgs(agentArgs);
     ProbeRuntime.configure(cfg.mode, cfg.actuatorId, cfg.actuateTargetKey, cfg.actuateReturnBoolean);
+    ProbeRuntime.configureCapture(
+        cfg.captureEnabled,
+        cfg.captureMaxKeys,
+        cfg.captureMaxArgs,
+        cfg.capturePreviewMaxChars,
+        cfg.captureStoredMaxChars,
+        cfg.captureRedactionMode
+    );
 
     try {
       ProbeHttpServer http = ProbeHttpServer.start(cfg.host, cfg.port);
@@ -26,10 +34,17 @@ public final class ProbeAgent {
       System.err.println("[probe-agent] status path: /__probe/status?key=...");
       System.err.println("[probe-agent] reset path:  /__probe/reset");
       System.err.println("[probe-agent] actuate path:/__probe/actuate");
+      System.err.println("[probe-agent] capture path:/__probe/capture?captureId=...");
       System.err.println("[probe-agent] mode: " + cfg.mode);
       System.err.println("[probe-agent] actuatorId: " + (cfg.actuatorId == null || cfg.actuatorId.isEmpty() ? "(none)" : cfg.actuatorId));
       System.err.println("[probe-agent] actuateTargetKey: " + (cfg.actuateTargetKey == null || cfg.actuateTargetKey.isEmpty() ? "(none)" : cfg.actuateTargetKey));
       System.err.println("[probe-agent] actuateReturnBoolean: " + cfg.actuateReturnBoolean);
+      System.err.println("[probe-agent] captureEnabled: " + cfg.captureEnabled);
+      System.err.println("[probe-agent] captureMaxKeys: " + cfg.captureMaxKeys);
+      System.err.println("[probe-agent] captureMaxArgs: " + cfg.captureMaxArgs);
+      System.err.println("[probe-agent] capturePreviewMaxChars: " + cfg.capturePreviewMaxChars);
+      System.err.println("[probe-agent] captureStoredMaxChars: " + cfg.captureStoredMaxChars);
+      System.err.println("[probe-agent] captureRedactionMode: " + cfg.captureRedactionMode);
       System.err.println("[probe-agent] include: " + String.join(",", cfg.includePatterns));
       System.err.println("[probe-agent] exclude: " + String.join(",", cfg.excludePatterns));
       // keep reference so GC doesn't collect server

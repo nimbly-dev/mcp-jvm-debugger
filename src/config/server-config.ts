@@ -10,6 +10,7 @@ export type ServerConfig = {
   probeBaseUrl: string;
   probeStatusPath: string;
   probeResetPath: string;
+  probeCapturePath: string;
   probeWaitMaxRetries: number;
   probeWaitUnreachableRetryEnabled: boolean;
   probeWaitUnreachableMaxRetries: number;
@@ -51,6 +52,11 @@ export class ServerConfigLoader {
       this.args.get("--probe-reset-path"),
       MCP_ENV.PROBE_RESET_PATH,
       CONFIG_DEFAULTS.PROBE_RESET_PATH,
+    );
+    const probeCapturePath = this.resolveProbePath(
+      this.args.get("--probe-capture-path"),
+      MCP_ENV.PROBE_CAPTURE_PATH,
+      CONFIG_DEFAULTS.PROBE_CAPTURE_PATH,
     );
 
     const probeWaitMaxRetries = this.parseIntFlag(
@@ -94,6 +100,7 @@ export class ServerConfigLoader {
       probeBaseUrl: probeBaseUrlRequired,
       probeStatusPath,
       probeResetPath,
+      probeCapturePath,
       probeWaitMaxRetries,
       probeWaitUnreachableRetryEnabled,
       probeWaitUnreachableMaxRetries,
