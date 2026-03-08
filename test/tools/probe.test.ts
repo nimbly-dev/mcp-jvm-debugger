@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { probeReset, probeStatus, probeWaitHit, probeCaptureGet } = require("../../src/tools/probe");
+const { probeReset, probeStatus, probeWaitHit, probeCaptureGet } = require("../../src/tools/probe/domain");
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {

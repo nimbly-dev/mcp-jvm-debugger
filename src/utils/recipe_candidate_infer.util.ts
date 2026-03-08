@@ -1,8 +1,8 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { inferBranchCondition } from "./recipe.util";
-import { buildJavaIndex } from "../tools/java_index";
-import { inferTargets } from "../tools/target_infer";
+import { buildJavaIndex } from "./inference/java_index.util";
+import { inferTargets } from "../tools/target_infer/domain";
 import type { RecipeCandidate, RequestInferenceSource } from "./recipe_types.util";
 
 type ParamType = {

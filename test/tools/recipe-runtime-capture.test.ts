@@ -3,7 +3,7 @@ const test = require("node:test");
 
 const {
   enrichRuntimeCapture,
-} = require("../../src/tools/recipe_generate/runtime_capture_enrich.util");
+} = require("../../src/utils/recipe_generate/runtime_capture_enrich.util");
 
 test("enrichRuntimeCapture returns unavailable when key/line is missing", async () => {
   const out = await enrichRuntimeCapture({
