@@ -2,18 +2,7 @@ import * as fs from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import * as path from "node:path";
 
-export type DiscoveredProject = {
-  id: string;
-  rootAbs: string;
-  build: "maven" | "gradle";
-  markers: string[];
-  probeScope: {
-    sourceRoots: string[];
-    packageSamples: number;
-    candidateBasePackages: string[];
-    suggestedInclude?: string;
-  };
-};
+import type { DiscoveredProject } from "../../models/project_discovery.model";
 
 const EXCLUDED_DIRS = new Set([".git", "node_modules", "target", "build", "out", ".idea"]);
 

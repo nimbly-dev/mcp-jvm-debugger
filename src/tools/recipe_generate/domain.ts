@@ -1,12 +1,12 @@
-import type { AuthResolution } from "../models/auth_resolution.model";
-import { type IntentMode, type RecipeStatus } from "../utils/recipe_constants.util";
-import { buildExecutionReadiness } from "../utils/execution_readiness.util";
-import { buildRecipeExecutionPlan } from "../utils/recipe_execution_plan.util";
-import { buildRoutingContext, resolveSelectedMode } from "../utils/recipe_intent_routing.util";
+import type { AuthResolution } from "../../models/auth_resolution.model";
+import { type IntentMode, type RecipeStatus } from "../../utils/recipe_constants.util";
+import { buildExecutionReadiness } from "../../utils/execution_readiness.util";
+import { buildRecipeExecutionPlan } from "../../utils/recipe_execution_plan.util";
+import { buildRoutingContext, resolveSelectedMode } from "../../utils/recipe_intent_routing.util";
 import {
   buildSearchRoots,
   findControllerRequestCandidate,
-} from "../utils/recipe_candidate_infer.util";
+} from "../../utils/recipe_candidate_infer.util";
 import type {
   ExecutionReadiness,
   InferenceDiagnostics,
@@ -14,14 +14,17 @@ import type {
   MissingExecutionInput,
   RecipeCandidate,
   RecipeExecutionPlan,
-} from "../utils/recipe_types.util";
-import { resolveAuthForRecipe } from "./auth_resolve";
-import { defaultStatusForMode, buildMissingRequestNextAction } from "./recipe_generate/mode.util";
-import { normalizeRecipeGenerateInput } from "./recipe_generate/normalize_input.util";
-import { buildRunNotes } from "./recipe_generate/run_notes.util";
-import { inferTargets } from "./target_infer";
+} from "../../utils/recipe_types.util";
+import { resolveAuthForRecipe } from "../../utils/recipe_generate/auth_resolve.util";
+import {
+  defaultStatusForMode,
+  buildMissingRequestNextAction,
+} from "../../utils/recipe_generate/mode.util";
+import { normalizeRecipeGenerateInput } from "../../utils/recipe_generate/normalize_input.util";
+import { buildRunNotes } from "../../utils/recipe_generate/run_notes.util";
+import { inferTargets } from "../target_infer/domain";
 
-export type { RecipeCandidate, RecipeExecutionPlan } from "../utils/recipe_types.util";
+export type { RecipeCandidate, RecipeExecutionPlan } from "../../utils/recipe_types.util";
 export type RecipeResultType = "recipe" | "report";
 
 export type GenerateRecipeResult = {

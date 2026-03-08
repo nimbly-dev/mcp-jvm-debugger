@@ -1,5 +1,5 @@
 import type { RecipeTemplateModel } from "../lib/recipe_template";
-import type { generateRecipe } from "../tools/recipe_generate";
+import type { generateRecipe } from "../tools/recipe_generate/domain";
 import type { RecipeExecutionStep } from "../utils/recipe_types.util";
 import { redactSecret } from "../utils/redaction.util";
 
