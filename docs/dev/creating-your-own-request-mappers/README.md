@@ -1,108 +1,112 @@
-# Creating Your Own Request Mappers
+Creating a Request Mapper Adapter
 
-This guide is for devs who need to teach the Java side how a framework expresses routes.
+This guide walks you through teaching the Java agent how a framework expresses HTTP routes. You'll build an adapter that extracts route information from source code annotations.
 
-Your job here is not to "guess a route".
-Your job is to extract a route only when source evidence is strong enough.
+Core Principle
 
-## What You Copy First
+Your adapter answers one question: Can I prove the HTTP method and path for this method from source evidence alone?
 
-Start with:
+• If yes → return a normalized ResolvedMapping
+• If no → return Optional.empty() and let the pipeline fail closed
 
-- `java-agent/mappers-adapters/adapter-request-mapper-example`
+This isn't about guessing routes. It's about extracting them only when the evidence is unambiguous.
 
-This example is default-off and safe to copy.
-It already includes a full generic extraction pattern:
+Getting Started
 
-- annotation name mapping
-- class + method path merge
-- HTTP method resolution
-- path expression resolution (literals, constants, concatenation)
-- final materialization through `PathMaterializer`
+Copy the example module as your starting point:
 
-## Where Your Real Adapter Belongs
+``
+java-agent/mappers-adapters/adapter-request-mapper-example
+`
 
-Place your implementation here:
+This example is disabled by default and safe to modify. It demonstrates the complete extraction pattern:
 
-- `java-agent/mappers-adapters/adapter-request-mapper-<framework>`
+• Annotation name mapping
+• Class + method path merging
+• HTTP method resolution
+• Path expression resolution (literals, constants, concatenation)
+• Final materialization through PathMaterializer
 
-Examples:
+Place your implementation in:
 
-- `adapter-request-mapper-jaxrs`
-- `adapter-request-mapper-quarkus`
+`
+java-agent/mappers-adapters/adapter-request-mapper-<framework>
+`
 
-## Mental Model
+For example: adapter-request-mapper-jaxrs, adapter-request-mapper-quarkus
 
-The mapper adapter answers one question:
-"From source code alone, can I prove the HTTP method + path for this target method?"
+Implementation Checklist
+Copy the example module; rename package and artifact names
+Replace annotation constants with your framework's route annotations
+Implement class-level base path extraction
+Implement method-level path and verb extraction
+Reuse PathMaterializer for consistent template handling
+Register your extractor in META-INF/services
+Build the module standalone before wiring it into the aggregator
 
-If yes:
-return one normalized `ResolvedMapping`.
+Design Guidelines
 
-If no:
-return `Optional.empty()` and let the pipeline fail closed with deterministic diagnostics.
+| Do | Don't |
+|---|---|
+| Keep strategyId() stable and specific | Put framework-specific code in core-request-mapper |
+| Treat composed annotations (@Get, @Post) as first-class | Return a mapping when only part of the route is proven |
+| Support both path and value attributes when the framework uses both | Rely on naming conventions instead of annotation evidence |
+| Handle constant references and string concatenation | Convert unresolved expressions into fake paths |
+| Return Optional.empty() for ambiguous cases | Bypass ServiceLoader registration |
 
-## Implementation Steps
+When to Fail Closed
 
-1. Copy the example module and rename package/artifact names.
-2. Replace annotation constants with your framework's route annotations.
-3. Implement class-level base path extraction.
-4. Implement method-level path and verb extraction.
-5. Reuse `PathMaterializer` so query/path/body template behavior stays consistent.
-6. Register your extractor in `META-INF/services`.
-7. Build the module directly before touching aggregator wiring.
+Return Optional.empty() when:
 
-## Practical Design Advice
+• No route annotations match
+• HTTP method cannot be resolved
+• Path expression requires unsafe assumptions to resolve
 
-- Keep `strategyId()` stable and specific.
-- Treat composed annotations (`Get`, `Post`, etc.) as first-class mappings.
-- Support both `path` and `value` attribute conventions when your framework uses both.
-- Handle constant references and string joins; real projects use both.
-- Do not convert unresolved expressions into fake paths.
+Returning empty is correct behavior. Silent invention of routes is not.
 
-## Fail-Closed Expectations
+Building and Validating
 
-Return `Optional.empty()` when:
+Build your module in isolation first:
 
-- no route annotations match
-- HTTP method cannot be resolved
-- path expression is non-resolvable without unsafe assumptions
-
-Returning empty is correct behavior.
-It is better than silently inventing a route.
-
-## Build And Validation
-
-Build module only:
-
-```bash
+`bash
 mvn -f java-agent/mappers-adapters/adapter-request-mapper-<framework>/pom.xml test
-```
+`
 
-Build full Java stack:
+Then build the full stack:
 
-```bash
+`bash
 mvn -f java-agent/pom.xml test
-```
+`
 
-After wiring, validate end-to-end through recipe/probe flow to confirm the mapper output is actually usable by orchestrated execution.
+After wiring, validate end-to-end through the recipe/probe flow to confirm the mapper output works in orchestrated execution.
 
-## Common Pitfalls
+Definition of Done
+• [ ] Adapter compiles and loads via ServiceLoader
+• [ ] Proven routes resolve to deterministic ResolvedMapping` objects
+• [ ] Unproven routes fail closed—no pseudo-success output
+• [ ] Behavior is documented well enough for the next contributor to extend
 
-- putting framework-specific code into `core-request-mapper`
-- returning a mapping when only part of the route is proven
-- relying on naming conventions instead of annotation evidence
-- bypassing `ServiceLoader` registration
+The Sanity Check
 
-## Done Criteria
+Before calling it done, ask yourself:
 
-- Adapter compiles and loads via `ServiceLoader`.
-- Proven routes resolve to deterministic `ResolvedMapping`.
-- Unproven routes fail closed (no pseudo-success output).
-- Behavior is documented enough for the next dev to extend.
-
-## One Final Sanity Question
-
-"If extraction fails, does the system still provide a clear next step without pretending success?"
+> If extraction fails, does the system still provide a clear next step without pretending success?
 
 If yes, your adapter is aligned with project intent.
+
+Summary of Changes
+
+Structure and scannability
+• Added horizontal rules between major sections
+• Converted guidelines into a comparison table
+• Used a checklist for implementation steps and definition of done
+• Shortened paragraphs and tightened sentences throughout
+
+Tone
+• Shifted from imperative commands to collaborative guidance ("You'll build..." instead of "Your job is...")
+• Kept the direct, no-nonsense voice but softened the edges for contributors
+
+Clarity
+• Moved the core principle to the top so readers understand the mindset before the mechanics
+• Grouped related concepts (when to fail closed, design do's and don'ts)
+• Made the sanity check a blockquote to set it apart as a reflection prompt

@@ -1,111 +1,127 @@
-# Creating Your Own Synthesizers
+# Building Your Own Synthesizer
 
-This guide is for devs building TS-side recipe generation for a framework.
+This guide walks you through building a TS-side synthesizer for your framework. If you're here, you're probably adding support for a new framework — that's great, and this document should have everything you need.
 
-A synthesizer turns mapping and context into an orchestrator-usable trigger recipe.
-It should be helpful, deterministic, and honest about uncertainty.
+## The Big Picture
 
-## What You Copy First
+A synthesizer takes mapping context and produces a **trigger recipe** that the orchestrator can actually execute. Think of it as answering one question:
 
-Start with:
+> *"Given what I know about how this endpoint is mapped, can I confidently describe how to call it?"*
 
-- `tools/synthesizers/tools-synthesizer-example`
+- **Yes?** Return `status: "recipe"` with a concrete, runnable trigger.
+- **Not sure?** Return `status: "report"` with specific failure metadata so the next person (or tool) knows exactly what went wrong and what to try next.
 
-This package is default-off and not registered by default.
-It is meant to be a low-friction starter for framework adoptors.
+That's it. Deterministic, honest, helpful.
 
-## Where Your Real Plugin Belongs
+---
 
-Create your real plugin here:
+## Getting Started
 
-- `tools/synthesizers/tools-<framework>`
+### 1. Copy the example
 
-Examples:
+The easiest starting point is the included example package:
 
+```
+tools/synthesizers/tools-synthesizer-example
+```
+
+It's intentionally off by default and not registered anywhere — it's a low-friction template designed for exactly this use case.
+
+### 2. Create your plugin
+
+Put your real plugin here:
+
+```
+tools/synthesizers/tools-<framework>
+```
+
+For example:
 - `tools-jaxrs`
 - `tools-quarkus`
 
-## Mental Model
+---
 
-The synthesizer answers:
-"Given proven mapping context, can I generate a request recipe the orchestrator can execute safely?"
+## Implementation Walkthrough
 
-If yes:
-return `status: "recipe"` with a concrete trigger.
+### Step 1 — Copy and rename
 
-If no:
-return `status: "report"` with deterministic failure metadata and next action.
+Copy the example package and update all the identifiers to reflect your framework.
 
-## Implementation Steps
+### Step 2 — Implement `canHandle`
 
-1. Copy the example package and rename identifiers.
-2. Implement strict `canHandle` for your framework.
-3. Build synthesis logic that produces:
-   - method
-   - path
-   - query/body templates
-   - rationale/evidence
-4. Add meaningful `attemptedStrategies` and `reasonCode` on failure.
-5. Keep plugin API compatibility aligned with `SYNTHESIZER_PLUGIN_API_VERSION`.
-6. Add tests before default registry wiring.
+This is your plugin's contract with the rest of the system. Make it **specific to your framework** — don't cast a wide net. If `canHandle` is too broad, your plugin will accidentally intercept projects it doesn't understand.
 
-## Output Quality Bar
+### Step 3 — Build the synthesis logic
 
-Your recipe output should be:
+A good recipe output includes:
+- `method` and `path`
+- query/body templates
+- `rationale` and `evidence` explaining *how* the route was derived
 
-- executable:
-  request details should be runnable without hidden assumptions.
-- explainable:
-  include concise rationale/evidence for how the route was synthesized.
-- fail-closed:
-  uncertainty produces a report, not fake success.
+### Step 4 — Design your failure output
 
-## Failure Design Guidance
+This is just as important as the happy path. When synthesis fails, your output should include:
 
-Good failure payloads include:
+| Field | Purpose |
+|---|---|
+| `reasonCode` | Specific, not generic |
+| `failedStep` | Where exactly things broke down |
+| `nextAction` | What to try next |
+| `evidence[]` | Linked back to source/mapping facts |
+| `attemptedStrategies[]` | What was actually tried |
 
-- specific `reasonCode`
-- precise `failedStep`
-- actionable `nextAction`
-- short `evidence[]` linked to source/mapping facts
-- real `attemptedStrategies[]` reflecting what was tried
+A good failure payload saves the next person from having to reverse-engineer your context. Think of it as leaving a clear note.
 
-Bad failure payloads are generic and force humans to reverse engineer context.
+### Step 5 — Stay API-compatible
 
-## Build And Validation
+Keep your plugin aligned with `SYNTHESIZER_PLUGIN_API_VERSION`. This keeps the ecosystem coherent as plugins evolve.
 
-Run lint/type checks:
+### Step 6 — Write tests first
+
+Before wiring your plugin into the default registry, validate it through the full MCP flow:
+
+```
+probe_recipe_create → inspect recipe/report → probe-verified execution
+```
+
+Only after this path is stable should you add your plugin to `createDefaultSynthesizerRegistry`.
+
+---
+
+## Build & Validation
 
 ```bash
 npm run lint
 npm run typecheck
 ```
 
-Validate behavior through MCP flow:
+---
 
-```text
-probe_recipe_create -> inspect recipe/report -> probe-verified execution
-```
+## Quality Bar
 
-Only wire into `createDefaultSynthesizerRegistry` after this path is stable.
+Before you ship, ask yourself:
+
+- **Executable** — Can someone run the recipe without needing to fill in hidden assumptions?
+- **Explainable** — Does the rationale/evidence make the synthesis reasoning clear?
+- **Fail-closed** — Does uncertainty produce a useful report, not a fake success?
+
+---
 
 ## Common Pitfalls
 
-- broad `canHandle` that steals projects from other plugins
-- returning recipe output without enough route proof
-- weak or generic failure codes
-- mixing transport concerns into plugin domain logic
+A few things that tend to catch people out:
 
-## Done Criteria
+- **Broad `canHandle`** — this quietly breaks other plugins by stealing their projects
+- **Thin route proof** — returning a recipe without enough evidence to back it up
+- **Generic failure codes** — `UNKNOWN_ERROR` doesn't help anyone
+- **Transport logic in plugin domain** — keep concerns separate
 
-- Plugin is deterministic across repeated runs.
-- `canHandle` is framework-specific and predictable.
-- Success output is executable and evidence-backed.
-- Failure output is specific and actionable.
-- Default registry behavior remains unchanged until explicit wiring.
+---
 
-## One Final Sanity Question
+## Done Checklist
 
-"When synthesis is uncertain, does the output still guide the next action clearly?"
-
-If yes, your plugin is aligned with project intent.
+- [ ] Plugin behaves deterministically across repeated runs
+- [ ] `canHandle` is framework-specific and predictable
+- [ ] Recipe output is executable and evidence-backed
+- [ ] Failure output is specific and actionable
+- [ ] Default registry behavior is unchanged until you explicitly wire it in

@@ -6,25 +6,24 @@
 [![Java Agent Target](https://img.shields.io/badge/Java%20Agent%20Target-17-ED8B00?logo=openjdk&logoColor=white)](https://maven.apache.org/)
 [![package](https://img.shields.io/badge/package-mcp--jvm--debugger%400.1.0-0A66C2)](https://github.com/nimbly-dev/mcp-java-dev-tools)
 
-**MCP Java Dev Tools** connects agentic coding tools to live Java runtime behavior through a lightweight sidecar agent.
+**MCP Java Dev Tools** bridges agentic coding tools and live Java runtime behavior through a lightweight sidecar agent.
 
-It attaches to a running JVM and exposes bytecode-level runtime signals that static analysis alone cannot see,
-allowing probe-verified inspection, targeted regression checks, runtime-path validation, and deterministic debugging workflows.
+Static analysis only gets you so far. By attaching directly to a running JVM, this tool surfaces bytecode-level runtime signals that static analysis alone can't see — enabling probe-verified inspection, targeted regression checks, runtime-path validation, and deterministic debugging workflows.
 
-The runtime agent is built with ByteBuddy and complements JDWP rather than replacing it.
-On top of the probe layer, the system provides framework-aware data synthesis and strict, fail-closed tool contracts,
-so agent orchestrators can make reliable decisions based on runtime proof.
+The runtime agent is built with ByteBuddy and works alongside JDWP rather than replacing it. On top of the probe layer, the system adds framework-aware data synthesis and strict, fail-closed tool contracts — so agent orchestrators can make decisions grounded in actual runtime proof, not inference.
 
-Operator workflows and end-to-end execution flows are documented in [docs/how-it-works/README.md](./docs/how-it-works/README.md).
+For operator workflows and end-to-end execution flows, see [docs/how-it-works/README.md](./docs/how-it-works/README.md).
 
 ---
 
 ## Requirements
 
-- Node.js `v24.13.0` (tested)
-- npm `11.6.2` (tested)
-- JDK `21+`
-- Maven
+| Requirement | Version |
+|---|---|
+| Node.js | `v24.13.0` (tested) |
+| npm | `11.6.2` (tested) |
+| JDK | `21+` |
+| Maven | any recent |
 
 ---
 
@@ -36,27 +35,31 @@ npm.cmd run build
 mvn -f java-agent\pom.xml package
 ```
 
-Build outputs:
-- MCP server: `dist/server.js`
-- Java agent bundle: `java-agent/core/core-probe/target/mcp-java-dev-tools-agent-0.1.0-all.jar`
+This produces two artifacts:
+- **MCP server** → `dist/server.js`
+- **Java agent bundle** → `java-agent/core/core-probe/target/mcp-java-dev-tools-agent-0.1.0-all.jar`
 
 ---
 
-## Java Agent
+## Attaching the Java Agent
 
 ```text
 -javaagent:C:\Users\{desktopName}\repository\mcp-java-dev-tools\java-agent\core\core-probe\target\mcp-java-dev-tools-agent-0.1.0.jar=host=0.0.0.0;port=9191;include=com.{your_workspace_root_package}.**;exclude=com.nimbly.mcpjavadevtools.agent.**,**.config.**,**Test
 ```
 
-Optional Java agent capture history tuning:
+**Tuning capture history buffer size** (all three are equivalent):
 
-- Agent arg: `captureMethodBufferSize=<1..32>` (default `3`)
-- JVM property: `-Dmcp.probe.capture.method.buffer.size=<1..32>`
-- Environment variable: `MCP_PROBE_CAPTURE_METHOD_BUFFER_SIZE=<1..32>`
+| Method | Value |
+|---|---|
+| Agent arg | `captureMethodBufferSize=<1..32>` |
+| JVM property | `-Dmcp.probe.capture.method.buffer.size=<1..32>` |
+| Environment variable | `MCP_PROBE_CAPTURE_METHOD_BUFFER_SIZE=<1..32>` |
+
+Default is `3`.
 
 ---
 
-## Install MCP
+## Installing the MCP Server
 
 <details>
 <summary><strong>Codex</strong></summary>
@@ -65,11 +68,9 @@ Optional Java agent capture history tuning:
 codex.cmd mcp add mcp-java-dev-tools --env MCP_PROBE_BASE_URL=http://127.0.0.1:9193 -- node C:\Users\{desktopName}\repository\mcp-java-dev-tools\dist\server.js
 ```
 
-Optional env:
+Optional: set `MCP_WORKSPACE_ROOT` if needed for your project layout.
 
-- `MCP_WORKSPACE_ROOT`
-
-Reinstall:
+To reinstall:
 
 ```powershell
 codex.cmd mcp remove mcp-java-dev-tools
@@ -81,7 +82,7 @@ codex.cmd mcp add mcp-java-dev-tools --env MCP_PROBE_BASE_URL=http://127.0.0.1:9
 <details>
 <summary><strong>Kiro / mcpServers JSON</strong></summary>
 
-Example (`~/.kiro/mcp.json`):
+Add this to `~/.kiro/mcp.json`:
 
 ```json
 {
@@ -97,9 +98,7 @@ Example (`~/.kiro/mcp.json`):
 }
 ```
 
-Optional env:
-
-- `MCP_WORKSPACE_ROOT`
+Optional: set `MCP_WORKSPACE_ROOT` if needed.
 
 </details>
 
@@ -107,16 +106,17 @@ Optional env:
 
 ## Installer Script
 
+The quickest way to get set up is the installer script:
+
 ```bash
 ./scripts/install-integrations.sh
 ```
 
-Default skill install set:
-
+This installs the default skill set:
 - `mcp-java-dev-tools-line-probe-run`
 - `mcp-java-dev-tools-regression-suite`
 
-Non-interactive:
+For non-interactive or CI use, the script accepts flags:
 
 ```bash
 ./scripts/install-integrations.sh --client codex --probe-base-url http://127.0.0.1:9193
@@ -126,67 +126,62 @@ Non-interactive:
 ./scripts/install-integrations.sh --client codex --skill-name mcp-java-dev-tools-line-probe-run --skill-name mcp-java-dev-tools-regression-suite
 ```
 
-Installer migration behavior:
+---
 
-- Retired skill `mcp-java-dev-tools-repro-orchestration` is removed from installed skill roots during skill install/update.
+## Runtime Configuration
+
+One environment variable is required; the rest are optional tuning knobs.
+
+**Required:**
+
+| Variable | Purpose |
+|---|---|
+| `MCP_PROBE_BASE_URL` | URL of the running probe agent |
+
+**Optional:**
+
+| Variable | Default | Notes |
+|---|---|---|
+| `MCP_WORKSPACE_ROOT` | — | Project root hint for path resolution |
+| `MCP_JAVA_REQUEST_MAPPING_RESOLVER_JAR` | — | |
+| `MCP_JAVA_REQUEST_MAPPING_RESOLVER_CLASSPATH` | — | |
+| `MCP_JAVA_BIN` | — | |
+| `MCP_PROBE_LINE_SELECTION_MAX_SCAN_LINES` | `120` | Range: 10–2000 |
+| `MCP_PROBE_WAIT_MAX_RETRIES` | `1` | Max: 10 |
+| `MCP_PROBE_WAIT_UNREACHABLE_RETRY_ENABLED` | `false` | |
+| `MCP_PROBE_WAIT_UNREACHABLE_MAX_RETRIES` | `3` | Max: 10 |
+| `MCP_PROBE_INCLUDE_EXECUTION_PATHS` | `false` | Set `true` to include `executionPaths` arrays in probe payloads |
+
+Probe endpoint paths are fixed:
+
+| Endpoint | Path |
+|---|---|
+| Status | `/__probe/status` |
+| Reset | `/__probe/reset` |
+| Capture | `/__probe/capture` |
 
 ---
 
-## Runtime Config
-
-Required:
-
-- `MCP_PROBE_BASE_URL`
-
-Optional:
-
-- `MCP_WORKSPACE_ROOT`
-- `MCP_JAVA_REQUEST_MAPPING_RESOLVER_JAR`
-- `MCP_JAVA_REQUEST_MAPPING_RESOLVER_CLASSPATH`
-- `MCP_JAVA_BIN`
-- `MCP_PROBE_LINE_SELECTION_MAX_SCAN_LINES` (default `120`, min `10`, max `2000`)
-- `MCP_PROBE_WAIT_MAX_RETRIES` (default `1`, max `10`)
-- `MCP_PROBE_WAIT_UNREACHABLE_RETRY_ENABLED` (default `false`)
-- `MCP_PROBE_WAIT_UNREACHABLE_MAX_RETRIES` (default `3`, max `10`)
-- `MCP_PROBE_INCLUDE_EXECUTION_PATHS` (default `false`; set `true` to include executionPaths arrays in probe payloads)
-
-Probe endpoint paths are fixed and non-overridable:
-
-- status: `"/__probe/status"`
-- reset: `"/__probe/reset"`
-- capture: `"/__probe/capture"`
-
 ## Skills
 
-Shipped skills:
-
-- `mcp-java-dev-tools-line-probe-run`
-- `mcp-java-dev-tools-regression-suite`
+| Skill | Purpose |
+|---|---|
+| `mcp-java-dev-tools-line-probe-run` | Line-level probe execution |
+| `mcp-java-dev-tools-regression-suite` | Regression check orchestration |
 
 ---
 
 ## MCP Tools
 
-- `debug_check`
-- `project_context_validate`
-- `probe_check`
-- `probe_target_infer`
-- `probe_recipe_create`
-- `probe_get_status`
-- `probe_get_capture`
-- `probe_reset`
-- `probe_wait_for_hit`
-- `probe_enable`
-
-## Synthesis Notes
-
-- `probe_recipe_create` request synthesis is code-first via synthesizer plugins and a generic JVM AST request-mapping resolver (no OpenAPI route fallback).
-- `probe_recipe_create` requires `classHint` as exact FQCN (for example `com.acme.catalog.web.controller.ProductController`).
-- Runtime synthesis candidate scope is runtime-only (`src/main/java` + generated-main roots); `src/test/java` is excluded.
-- The AST resolver exposes a framework-agnostic contract over `stdin/stdout`; Spring MVC support is currently provided via a mapper plugin.
-- OpenAPI files are still used for auth hinting when available.
-- When `resultType=report`, `executionPlan.steps` are compact action codes (for example `resolve_auth`, `request_candidate_missing`) instead of verbose instruction text.
-- Orchestration decisions must use deterministic fields (`resultType`, `status`, `reasonCode`, `failedStep`); confidence/heuristic scoring is not part of the public contract.
-- Preferred operator inputs for fewer ambiguities: explicit API/probe base URL, context path, and app port.
-
-
+| Tool | |
+|---|---|
+| `debug_check` | |
+| `project_context_validate` | |
+| `probe_check` | |
+| `probe_target_infer` | |
+| `probe_recipe_create` | |
+| `probe_get_status` | |
+| `probe_get_capture` | |
+| `probe_reset` | |
+| `probe_wait_for_hit` | |
+| `probe_enable` | |

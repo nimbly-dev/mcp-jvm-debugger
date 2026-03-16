@@ -1,46 +1,57 @@
+Here's the rewrite:
+
+---
+
 # How It Works
 
-This document provides an overview and guide on how to use the mcp-java-dev-tools tool
+This document walks you through how `mcp-java-dev-tools` operates in practice — what it needs to run, how the orchestration flow works, and what each use case looks like end-to-end.
 
-## Run Preconditions
+---
 
-- Java agent is attached to the target service and probe endpoints are reachable.
-- `MCP_PROBE_BASE_URL` points to the sidecar/probe endpoint.
-- If a request requires certain credentials, provide it on the prompt
-- Strict line probe runs use `Class#method:line` semantics.
-- Runtime route synthesis only scans runtime sources (`src/main/java` + generated-main roots), not `src/test/java`.
-- Orchestration decisions must use deterministic fields (`resultType`, `status`, `reasonCode`, `failedStep`) instead of confidence/heuristic scoring.
+## Before You Start
 
-Required recipe inputs:
+Make sure these preconditions are met before running any workflow:
+
+- The Java agent is attached to your target service and probe endpoints are reachable
+- `MCP_PROBE_BASE_URL` points to the sidecar/probe endpoint
+- If your endpoint requires credentials, include them in your prompt — they can't be inferred
+- Strict line probe runs use `Class#method:line` semantics
+- Runtime route synthesis only scans runtime sources (`src/main/java` + generated-main roots) — not `src/test/java`
+- Orchestration decisions must use deterministic fields (`resultType`, `status`, `reasonCode`, `failedStep`) rather than confidence scores or heuristics
+
+**Required recipe inputs:**
 - `projectRootAbs`
-- exact FQCN in `classHint`
-- exact `methodHint`
+- Exact FQCN in `classHint`
+- Exact `methodHint`
 - `lineHint` for probe-intent modes (`single_line_probe`, `regression_plus_line_probe`)
-- auth input when endpoint auth is required
+- Auth when the endpoint requires it
 
-Preferred additional inputs:
-- explicit API base URL / context path
-- explicit probe base URL
-- explicit application port
+**Helpful to provide explicitly:**
+- API base URL / context path
+- Probe base URL
+- Application port
 
-Context path prompting policy:
-- Ask for context path (`apiBasePath`, for example `/api/v1`) at most once per run.
-- Reuse the same `apiBasePath` value across all endpoint recipes in that run.
-- Missing context path is a soft prompt, not a synthesis blocker.
+**Context path prompting policy:** Ask for the context path (e.g. `apiBasePath` like `/api/v1`) at most once per run, then reuse that value across all endpoint recipes in that run. A missing context path is a soft prompt — it won't block synthesis.
 
-To know if the java agent is instrumenting your java classes, on startup you can see this logs:
+**Verifying agent instrumentation:** On startup, the agent logs each instrumented class:
 
 ```txt
 [mcp-probe]: com.yourpackagename.yourclassname
 ```
 
-## Use Case 1: Reproducible Recipe for Class/Method/Line Probe (Bearer Auth)
+If you don't see your classes listed, the agent isn't covering them yet.
+
+---
+
+## Use Case 1: Single Line Probe with Bearer Auth
+
+Use this when you want a reproducible recipe for a specific class, method, and line — with runtime proof that the line was hit.
 
 ### Input Pattern
 
-- Repo: `{repo-name}`
-- Target: `{fullyQualifiedClassName}.{method}:{lineOfCode}`
-- Auth: `Bearer <token>`
+- **Repo:** `{repo-name}`
+- **Target:** `{fullyQualifiedClassName}.{method}:{lineOfCode}`
+- **Auth:** `Bearer <token>`
 
 ### Example Prompt
 
@@ -51,38 +62,38 @@ Use bearer auth: `Bearer eyJhbGciOi...`.
 Return the exact request plan and probe verification steps.
 ```
 
-### Expected Runtime Flow 
+### What Happens
 
-1. Orchestrator selects the project root and passes `projectRootAbs`.
-2. `project_context_validate` optionally validates scoped project context for that exact root.
-3. `probe_recipe_create` is called with `projectRootAbs`, `intentMode=single_line_probe`, exact FQCN in `classHint`, method/line hints, optional `apiBasePath`, and bearer auth context.
-4. `probe_recipe_create` performs code-based route inference through synthesizer plugins backed by the generic JVM AST request-mapping resolver and returns `executionReadiness`, `requestCandidates`, `inferredTarget`, and `selectedMode`.
-5. If `resultType=report`, treat output as fail-closed and read compact execution metadata (`executionPlan.routingReason`, `executionPlan.steps[].actionCode`) plus synthesis diagnostics.
-6. On ready state, `probe_reset` clears baseline counter/state for the strict line key.
-7. The orchestrator executes the selected HTTP trigger request from the recipe using the bearer token.
-8. `probe_wait_for_hit` confirms inline line execution; if unavailable, fallback check can use `probe_get_status` for detailed status payload.
-9. When `capturePreview.captureId` is present, `probe_get_capture` retrieves full runtime capture payload for arguments/context evidence.
+1. The orchestrator resolves the project root and passes `projectRootAbs`
+2. `project_context_validate` optionally validates the scoped project context for that root
+3. `probe_recipe_create` is called with `projectRootAbs`, `intentMode=single_line_probe`, exact FQCN in `classHint`, method/line hints, optional `apiBasePath`, and auth context
+4. The tool performs code-based route inference through synthesizer plugins backed by the generic JVM AST request-mapping resolver, returning `executionReadiness`, `requestCandidates`, `inferredTarget`, and `selectedMode`
+5. If `resultType=report`, treat it as fail-closed — read the compact execution metadata (`executionPlan.routingReason`, `executionPlan.steps[].actionCode`) and synthesis diagnostics
+6. On a ready state, `probe_reset` clears the baseline counter for the strict line key
+7. The orchestrator fires the selected HTTP trigger using the bearer token
+8. `probe_wait_for_hit` confirms the line was executed; if unavailable, `probe_get_status` provides a detailed status payload
+9. When `capturePreview.captureId` is present, `probe_get_capture` retrieves the full runtime capture for arguments and context evidence
 
-### Expected Outputs and Artifacts
+### What You Get Back
 
-- Reproducible recipe artifact:
-  - selected mode
-  - selected HTTP request (method/path/headers/body template)
-  - strict probe key (`Class#method:line`)
-- Probe verification artifact:
-  - hit/no-hit result, inline status, last status snapshot
-- Runtime evidence artifact (when available):
-  - `captureId` and full capture payload
-- Pushback artifact (fail-closed cases):
-  - `reasonCode`, `attemptedCandidates`, `validationResults`, `nextAction`, ordered repro steps
+| Artifact | Contents |
+|---|---|
+| **Recipe** | Selected mode, HTTP request (method/path/headers/body template), strict probe key (`Class#method:line`) |
+| **Probe verification** | Hit/no-hit result, inline status, last status snapshot |
+| **Runtime evidence** | `captureId` and full capture payload (when available) |
+| **Pushback** | `reasonCode`, `attemptedCandidates`, `validationResults`, `nextAction`, ordered repro steps (fail-closed cases) |
 
-## Use Case 2: Regression HTTP Test Execution for a Controller in `{repo-name}-api` (Bearer Auth)
+---
+
+## Use Case 2: Controller Regression Run with Bearer Auth
+
+Use this when you want to run HTTP regression tests across all routes in a controller and verify which ones can be probe-confirmed.
 
 ### Input Pattern
 
-- Repo/API scope: `{repo-name}-api`
-- Controller: `{fullyQualifiedClassNameOfController}`
-- Auth: `Bearer <token>`
+- **Repo/API scope:** `{repo-name}-api`
+- **Controller:** `{fullyQualifiedClassNameOfController}`
+- **Auth:** `Bearer <token>`
 
 ### Example Prompt
 
@@ -93,34 +104,36 @@ Use bearer auth `Bearer eyJhbGciOi...`.
 Return endpoint-level HTTP results and any probe-verifiable evidence.
 ```
 
-### Expected Runtime Flow 
+### What Happens
 
-1. Orchestrator resolves the API project and passes `projectRootAbs`.
-2. `project_context_validate` optionally validates scoped project context for that exact root.
-3. For each route under the controller scope, `probe_recipe_create` is called with exact FQCN class input (and shared `apiBasePath` when applicable) to produce executable request candidates from AST-backed request mapping resolution plus auth/readiness diagnostics.
-4. If `probe_recipe_create` returns `resultType=report`, stop that route as fail-closed and use compact execution metadata (`executionPlan.routingReason`, `executionPlan.steps[].actionCode`) with diagnostics for routing decisions.
-5. The orchestrator executes regression HTTP requests route-by-route with bearer auth and records request/response outcomes.
-6. Probe verification is applied only when strict line targets are available for an endpoint.
-7. For probe-eligible endpoints, `probe_reset` -> execute HTTP request -> `probe_wait_for_hit` (or `probe_get_status`) verifies runtime line execution.
-8. Any probe capture preview discovered during status checks can be expanded through `probe_get_capture`.
-9. Endpoints without strict line mapping remain HTTP-only and must be marked explicitly as non-probe-verified.
+1. The orchestrator resolves the API project and passes `projectRootAbs`
+2. `project_context_validate` optionally validates the scoped project context
+3. For each route under the controller, `probe_recipe_create` is called with the exact FQCN (and shared `apiBasePath` when applicable) to produce executable request candidates and auth/readiness diagnostics
+4. If `probe_recipe_create` returns `resultType=report`, that route is treated as fail-closed — use the compact execution metadata and diagnostics for routing decisions
+5. The orchestrator fires regression HTTP requests route-by-route with bearer auth and records outcomes
+6. Probe verification is only applied when strict line targets are available for an endpoint
+7. For probe-eligible endpoints: `probe_reset` → execute HTTP request → `probe_wait_for_hit` (or `probe_get_status`) confirms runtime line execution
+8. Any capture preview discovered during status checks can be expanded via `probe_get_capture`
+9. Endpoints without strict line mapping remain HTTP-only and must be explicitly marked as non-probe-verified
 
-### Expected Outputs and Artifacts
+### What You Get Back
 
-- Regression result artifact:
-  - endpoint matrix (`method`, `path`, expected/actual HTTP code, pass/fail)
-- Coverage artifact:
-  - probe-verified endpoints vs HTTP-only endpoints
-- Evidence artifact:
-  - per-endpoint probe status and optional capture payload reference
-- Failure artifact:
-  - failed endpoint diagnostics with deterministic repro steps
+| Artifact | Contents |
+|---|---|
+| **Regression results** | Endpoint matrix: method, path, expected/actual HTTP status, pass/fail |
+| **Coverage summary** | Probe-verified endpoints vs. HTTP-only endpoints |
+| **Evidence** | Per-endpoint probe status and optional capture payload reference |
+| **Failure diagnostics** | Failed endpoint details with deterministic repro steps |
 
-## Use Case 3: Regression HTTP Execution + Repro Recipe for Failed/Flagged Runs
+---
+
+## Use Case 3: Regression Run + Repro Recipes for Failures
+
+Use this when you want Use Case 2's regression run *plus* a focused, reproducible recipe for every endpoint that failed or was flagged.
 
 ### Input Pattern
 
-- Same as Use Case 2, plus requirement to generate per-failure reproducible recipes.
+Same as Use Case 2, with the added requirement to generate per-failure reproducible recipes.
 
 ### Example Prompt
 
@@ -130,28 +143,38 @@ Run controller regression for `catalog-api` on
 For every failed or flagged run, generate a reproducible recipe and include runtime/probe evidence when available.
 ```
 
-### Expected Runtime Flow
+### What Happens
 
-1. Execute Use Case 2 regression flow to completion and collect full endpoint outcomes.
-2. Filter endpoints into `failed` or `flagged` sets (for example non-2xx/contract mismatch/probe-miss).
-3. For each failed/flagged endpoint, call `probe_recipe_create` to emit a focused rerun recipe tied to the observed failure context.
-4. If strict line verification is possible for that endpoint, run `probe_reset` + targeted HTTP rerun + `probe_wait_for_hit`/`probe_get_status`.
-5. If capture preview exists, call `probe_get_capture` and attach capture evidence to that endpoint's recipe package.
-6. If runtime route cannot be uniquely validated during rerun, emit fail-closed pushback artifact instead of speculative guidance.
+1. Run the full Use Case 2 regression flow and collect all endpoint outcomes
+2. Filter endpoints into `failed` or `flagged` sets (non-2xx, contract mismatch, probe-miss, etc.)
+3. For each failed/flagged endpoint, call `probe_recipe_create` to produce a focused rerun recipe tied to the observed failure context
+4. If strict line verification is possible, run `probe_reset` → targeted HTTP rerun → `probe_wait_for_hit` / `probe_get_status`
+5. If a capture preview exists, call `probe_get_capture` and attach the evidence to that endpoint's recipe package
+6. If the runtime route can't be uniquely validated during rerun, emit a fail-closed pushback artifact — not speculative guidance
 
-### Expected Outputs and Artifacts
+### What You Get Back
 
-- Primary regression artifact:
-  - full controller endpoint pass/fail report
-- Per-failure recipe bundle:
-  - endpoint-specific trigger request, auth header requirements, strict probe target when available, and rerun steps
-- Evidence bundle per failed/flagged endpoint:
-  - probe hit/miss status, last status payload, optional capture payload
-- Pushback bundle (when unresolved):
-  - `probe_route_not_found` or `probe_route_ambiguous` with candidate validation details
+| Artifact | Contents |
+|---|---|
+| **Regression report** | Full controller endpoint pass/fail summary |
+| **Per-failure recipe bundle** | Endpoint-specific trigger request, auth requirements, strict probe target (when available), rerun steps |
+| **Evidence bundle** | Probe hit/miss status, last status payload, optional capture payload — per failed/flagged endpoint |
+| **Pushback bundle** | `probe_route_not_found` or `probe_route_ambiguous` with candidate validation details (when unresolved) |
 
-## Important Notes
+---
 
-- Do not claim probe success without strict `Class#method:line` verification or check on your IDE if the execution paused.
-- Provide the Coding Agent tool all the needed information to execute the request, although there are some pushbacks and guardrails coded to the tool and SKILL for this, to save context tokens. It is imperative to add details that cannot be inferred to the prompt such as Auth Bearer
-- Data synthetisation will be handled by the Coding agent Tool.
+## A Few Important Reminders
+
+- **Don't claim probe success without verification.** A probe hit must be confirmed via strict `Class#method:line` check or by observing a breakpoint pause in your IDE.
+- **Include everything the agent can't infer.** Auth tokens in particular must be in your prompt — the tool has guardrails, but it can't guess credentials.
+- **Data synthesis is the tool's job.** You provide the inputs and context; the coding agent handles synthesis.
+
+---
+
+The main changes from the original:
+
+- **"Before You Start" instead of "Run Preconditions"** — reads like advice rather than a gate
+- **Use case intros** — each one now opens with a single sentence explaining *when* you'd reach for it, so readers can orient before diving into the flow
+- **"What Happens" and "What You Get Back"** replace the flat numbered list + bullet combos — the tables make the output artifacts much easier to scan
+- **The instrumentation verification note** got a follow-up sentence explaining what to do if you *don't* see your classes, which the original left implicit
+- **"A Few Important Reminders"** replaces "Important Notes" and reads like a colleague flagging gotchas, not a warning label

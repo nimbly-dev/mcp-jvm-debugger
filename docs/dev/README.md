@@ -1,83 +1,93 @@
 # Dev Guides
 
-This section is for devs adding framework support to `mcp-java-dev-tools`.
+This section is for developers adding framework support — whether you're extending an existing integration or bringing in a brand-new framework from scratch.
 
-If you are new here, do not start from probe internals.
-Start from adapters and plugins, then move inward only if needed.
+**New here? Start with adapters and plugins.** You don't need to understand probe internals to be productive. Work from the outside in, and only go deeper if something pulls you there.
+
+---
 
 ## Start Here
 
 - [Creating Your Own Request Mappers](./creating-your-own-request-mappers/README.md)
 - [Creating Your Own Synthesizers](./creating-your-own-synthesizers/README.md)
 
-## How To Think About The Architecture
+---
 
-The platform has two extension surfaces:
+## How the Architecture Fits Together
 
-- Java request mappers:
-  map framework/controller source code into normalized HTTP request candidates.
-- TS synthesizers:
-  turn resolved mapping context into orchestrator-ready recipe outputs.
+There are two extension surfaces — one on the Java side, one on the TypeScript side. Together they form a pipeline:
 
-The probe remains the runtime truth source.
-Adapters and synthesizers should enrich and route, not override runtime proof.
+| Surface | Language | What it does |
+|---|---|---|
+| **Request Mapper Adapters** | Java | Reads framework/controller source code and extracts normalized HTTP request candidates |
+| **Synthesizer Plugins** | TypeScript | Takes resolved mapping context and produces an orchestrator-ready recipe |
 
-## Where Extension Code Lives
+The **probe** is always the runtime truth source. Your adapters and synthesizers should enrich and route — not override what the probe actually observed at runtime.
 
-- Java request mapper adapters:
-  `java-agent/mappers-adapters/adapter-request-mapper-*`
-- TS synthesizer plugins:
-  `tools/synthesizers/tools-*`
+---
 
-Opt-in examples:
+## Where Your Code Lives
 
+| What you're building | Where it goes |
+|---|---|
+| Java request mapper adapter | `java-agent/mappers-adapters/adapter-request-mapper-*` |
+| TS synthesizer plugin | `tools/synthesizers/tools-*` |
+
+**Starting templates** (intentionally off by default — these are scaffolds, not production modules):
 - `java-agent/mappers-adapters/adapter-request-mapper-example`
 - `tools/synthesizers/tools-synthesizer-example`
 
-Examples are intentionally default-off.
-They are starter scaffolds, not production modules.
+---
 
-## Which Surface Should You Extend
+## Which Surface Do You Need?
 
-Choose a request mapper adapter when:
+**Build a request mapper adapter when:**
+- Your framework uses route annotations or controller conventions that aren't currently extracted
+- AST extraction is missing for your framework
 
-- your framework introduces new route annotations or controller conventions
-- AST extraction is currently missing for that framework
+**Build a synthesizer plugin when:**
+- Route extraction already works, but recipe generation needs framework-specific logic
+- Auth, header, or body assumptions vary by framework convention
 
-Choose a synthesizer plugin when:
+**Starting a brand-new framework?** You'll likely need both.
 
-- route extraction exists, but recipe generation needs framework-specific behavior
-- auth/header/body assumptions vary by framework conventions
-
-You often need both for a brand-new framework.
+---
 
 ## Engineering Guardrails
 
-- Keep core framework-agnostic.
-- Keep framework logic in adapters/plugins.
-- Preserve deterministic fail-closed contracts:
-  `status`, `reasonCode`, `failedStep`, `nextAction`, `evidence`, `attemptedStrategies`.
-- Do not return success from weak heuristics.
+A few principles that hold across all extension work:
+
+- **Keep the core framework-agnostic.** Framework-specific logic belongs in adapters and plugins, not in shared internals.
+- **Fail closed, always.** When proof is insufficient, return a structured failure — never fake success from weak heuristics.
+- **Honor the contract.** Outputs should consistently include: `status`, `reasonCode`, `failedStep`, `nextAction`, `evidence`, `attemptedStrategies`.
+
+---
 
 ## Typical Dev Flow
 
-1. Copy the example module/package nearest to your target framework.
-2. Rename package/artifact/plugin identifiers.
-3. Implement framework rules in mapper/plugin code.
-4. Validate module-level build first.
-5. Validate end-to-end via `probe_recipe_create`.
-6. Only then wire into default aggregator/registry.
+1. Copy the example module or package closest to your target framework
+2. Rename package, artifact, and plugin identifiers
+3. Implement your framework's rules in the mapper or plugin code
+4. Validate the module-level build in isolation first
+5. Validate end-to-end via `probe_recipe_create`
+6. Only then wire into the default aggregator or registry
 
-## Ready-For-PR Checklist
+Resist the urge to skip to step 6 — the isolated validation steps catch most issues early.
 
-- Adapter/plugin returns fail-closed outputs when proof is insufficient.
-- Reason codes are specific enough for orchestrator follow-up.
-- Paths, verbs, and templates are reproducible from source evidence.
-- Module builds cleanly in isolation.
-- Default behavior remains unchanged unless explicit wiring is added.
+---
 
-## Notes For New Devs
+## Ready-for-PR Checklist
 
-If the code feels "machine-first", that is intentional.
-Human readability still matters, but deterministic machine contracts come first.
-Good extension work balances both: clear code for humans, strict outputs for agents.
+- [ ] Adapter/plugin returns fail-closed outputs when proof is insufficient
+- [ ] Reason codes are specific enough for orchestrator follow-up
+- [ ] Paths, verbs, and templates are reproducible from source evidence
+- [ ] Module builds cleanly in isolation
+- [ ] Default behavior is unchanged unless explicit wiring was added
+
+---
+
+## A Note on "Machine-First" Code
+
+If some of the contracts here feel unusually strict or mechanical — that's intentional. This system is consumed by agents as much as humans, so deterministic outputs aren't just good practice, they're load-bearing.
+
+That said, clarity for human readers still matters. The best extension work does both: code that's easy to follow, with outputs that agents can act on without ambiguity. You're not writing for one audience or the other — you're writing for both.
