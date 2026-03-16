@@ -59,7 +59,7 @@ A few principles that hold across all extension work:
 
 - **Keep the core framework-agnostic.** Framework-specific logic belongs in adapters and plugins, not in shared internals.
 - **Fail closed, always.** When proof is insufficient, return a structured failure — never fake success from weak heuristics.
-- **Honor the contract.** Outputs should consistently include: `status`, `reasonCode`, `failedStep`, `nextAction`, `evidence`, `attemptedStrategies`.
+- **Honor the contract.** Outputs should always include `status`. For `report` outputs, include: `reasonCode`, `failedStep`, `nextAction`, `evidence`, `attemptedStrategies`.
 
 ---
 
@@ -69,7 +69,7 @@ A few principles that hold across all extension work:
 2. Rename package, artifact, and plugin identifiers
 3. Implement your framework's rules in the mapper or plugin code
 4. Validate the module-level build in isolation first
-5. Validate end-to-end via `probe_recipe_create`
+5. Validate end-to-end via `probe_recipe_create` (use temporary local registry wiring when testing a plugin before default registration)
 6. Only then wire into the default aggregator or registry
 
 Resist the urge to skip to step 6 — the isolated validation steps catch most issues early.

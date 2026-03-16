@@ -78,7 +78,7 @@ Keep your plugin aligned with `SYNTHESIZER_PLUGIN_API_VERSION`. This keeps the e
 
 ### Step 6 — Write tests first
 
-Before wiring your plugin into the default registry, validate it through the full MCP flow:
+Before wiring your plugin into the default registry, validate it through the full MCP flow using temporary local registry wiring for pre-merge checks:
 
 ```
 probe_recipe_create → inspect recipe/report → probe-verified execution
@@ -94,6 +94,8 @@ Only after this path is stable should you add your plugin to `createDefaultSynth
 npm run lint
 npm run typecheck
 ```
+
+Note: `npm run typecheck` validates only files included by the root `tsconfig.json`. If your new plugin package is not included there yet, run a package-local typecheck as part of your pre-merge checks.
 
 ---
 

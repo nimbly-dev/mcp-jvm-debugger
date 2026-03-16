@@ -1,6 +1,6 @@
 # Creating a Request Mapper Adapter
 
-This guide walks you through teaching the Java agent how a framework expresses HTTP routes. You'll build an adapter that extracts route information from source code annotations.
+This guide walks you through teaching the Java agent how a framework expresses HTTP routes. You'll build an adapter that extracts route information from source code evidence (usually annotations).
 
 ---
 
@@ -69,7 +69,7 @@ For example: `adapter-request-mapper-jaxrs`, `adapter-request-mapper-quarkus`
 
 Return `Optional.empty()` when:
 
-- No route annotations match
+- No route declarations match
 - HTTP method cannot be resolved
 - Path expression requires unsafe assumptions to resolve
 
@@ -85,7 +85,7 @@ Build your module in isolation first:
 mvn -f java-agent/mappers-adapters/adapter-request-mapper-<framework>/pom.xml test
 ```
 
-Then build the full stack:
+Then (after wiring) build the full stack:
 
 ```bash
 mvn -f java-agent/pom.xml test
