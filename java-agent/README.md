@@ -1,95 +1,30 @@
-## Java Probe Agent
+# Java Agent Structure
 
-Runtime-only probe agent for local JVMs. No application source code changes required.
+Grouped module layout with non-breaking artifact names.
 
-### Module Map
+## Active module groups
+- `core/core-probe` (`mcp-java-dev-tools-agent`)
+- `core/core-probe-runtime` (`mcp-java-dev-tools-core-probe-runtime`)
+- `core/core-probe-instrumentation` (`mcp-java-dev-tools-core-probe-instrumentation`)
+- `core/core-probe-control-http` (`mcp-java-dev-tools-core-probe-control-http`)
+- `core/core-request-mapper` (`mcp-java-dev-tools-core-request-mapper`)
+- `mappers-adapters/adapter-request-mapper-spring` (`mcp-java-dev-tools-adapter-request-mapper-spring`)
+- `request-mapping-resolver` (legacy compatibility artifact, optional)
 
-- `core`: javaagent runtime, probe HTTP server, instrumentation, and profile-based bundle packaging.
-- `core-request-mapper`: framework-agnostic request-mapping resolver core plus mapper SPI.
-- `request-mapper-spring`: Spring MVC mapper plugin loaded via `ServiceLoader`.
+## Build entrypoint
+- Parent: `java-agent/pom.xml`
+- Aggregators:
+  - `java-agent/core/pom.xml`
+  - `java-agent/mappers-adapters/pom.xml`
 
-### Build
+## Test placeholders
+- `tests/core-contract-tests`
+- `tests/mapper-contract-tests`
+- `tests/e2e-agent-tests`
 
-```powershell
-mvn -f java-agent\pom.xml package
-```
+These test modules are placeholders only for now; no generated test code was added.
 
-Built artifacts:
+## Opt-in examples
+- `mappers-adapters/adapter-request-mapper-example`
 
-```text
-java-agent\core\target\mcp-java-dev-tools-agent-0.1.0-minimal.jar
-java-agent\core\target\mcp-java-dev-tools-agent-0.1.0-spring.jar
-java-agent\core\target\mcp-java-dev-tools-agent-0.1.0-all.jar
-java-agent\core-request-mapper\target\mcp-java-dev-tools-core-request-mapper-0.1.0-all.jar
-java-agent\request-mapper-spring\target\mcp-java-dev-tools-request-mapper-spring-0.1.0.jar
-```
-
-Profile-specific build examples:
-
-```powershell
-mvn -f java-agent\pom.xml -pl core -am -Pminimal -DskipTests package
-mvn -f java-agent\pom.xml -pl core -am -Pspring -DskipTests package
-mvn -f java-agent\pom.xml -pl core -am -Pall -DskipTests package
-```
-
-The request-mapping resolver is a generic JVM AST helper consumed by synthesizers through a `stdin/stdout` JSON contract. Spring MVC support is provided by `request-mapper-spring`.
-
-### Run With Spring Boot
-
-Use JVM args (example):
-
-```text
--javaagent:C:\Users\Altheo\repository\mcp-java-dev-tools\java-agent\core\target\mcp-java-dev-tools-agent-0.1.0.jar=host=127.0.0.1;port=9191;mode=observe;actuatorId=none;captureMethodBufferSize=3;include=com.nimbly.**;exclude=com.nimbly.mcpjavadevtools.agent.**,**.config.**,**Test
-```
-
-`include` and `exclude` are comma-separated glob patterns over dotted class names.
-- Agent mode defaults to `observe`.
-- Supported modes:
-  - `observe` (default): telemetry only, no runtime behavior mutation.
-  - `actuate`: enables controlled runtime actuation flows.
-- `actuatorId` is optional and only meaningful in `actuate` mode.
-- Generic boolean actuator (actuate mode):
-  - target key: `ClassName#methodName`
-  - return value override: `true|false`
-- If no wildcard is present, pattern is treated as package prefix.
-- Runtime probe keys are dynamic: `fully.qualified.ClassName#methodName`.
-- Line-level probe keys are also emitted: `fully.qualified.ClassName#methodName:<lineNumber>`.
-  - Example: `com.nimbly.phshoesbackend.useraccount.core.service.impl.SuppressionServiceImpl#shouldBlock:32`
-- In `mcp-java-dev-tools`, `project_context_validate` can validate scoped project roots before probe runs.
-- If `include` is omitted, the agent auto-infers base package at startup:
-  - from executable jar manifest `Start-Class` (or `Main-Class`)
-  - or from class-launch command (`java com.example.Main`)
-  - then uses `<base.package>.**` as default include
-- Defaults can be overridden without changing args:
-  - `-Dmcp.probe.include=...` or env `MCP_PROBE_INCLUDE`
-  - `-Dmcp.probe.exclude=...` or env `MCP_PROBE_EXCLUDE`
-  - `-Dmcp.probe.mode=observe|actuate` or env `MCP_PROBE_MODE`
-  - `-Dmcp.probe.actuator.id=<id>` or env `MCP_PROBE_ACTUATOR_ID`
-  - `-Dmcp.probe.actuate.target=<Class#method>` or env `MCP_PROBE_ACTUATE_TARGET`
-  - `-Dmcp.probe.actuate.return.boolean=true|false` or env `MCP_PROBE_ACTUATE_RETURN_BOOLEAN`
-  - `-Dmcp.probe.capture.enabled=true|false` or env `MCP_PROBE_CAPTURE_ENABLED`
-  - `-Dmcp.probe.capture.max.keys=<int>` or env `MCP_PROBE_CAPTURE_MAX_KEYS`
-  - `-Dmcp.probe.capture.max.args=<int>` or env `MCP_PROBE_CAPTURE_MAX_ARGS`
-  - `-Dmcp.probe.capture.method.buffer.size=<int>` or env `MCP_PROBE_CAPTURE_METHOD_BUFFER_SIZE`
-  - `-Dmcp.probe.capture.preview.max.chars=<int>` or env `MCP_PROBE_CAPTURE_PREVIEW_MAX_CHARS`
-  - `-Dmcp.probe.capture.stored.max.chars=<int>` or env `MCP_PROBE_CAPTURE_STORED_MAX_CHARS`
-  - `-Dmcp.probe.capture.redaction=basic|off` or env `MCP_PROBE_CAPTURE_REDACTION`
-- `captureMethodBufferSize` controls recent captures retained per `Class#method`.
-  - Range: `1..32`
-  - Default: `3`
-  - Precedence: `agent arg > JVM system property > environment variable > default`
-
-### Endpoints Exposed By Agent
-
-- `GET /__probe/status?key=<probe-key>`
-  - Example key: `com.nimbly.phshoesbackend.catalog.core.repository.jpa.CatalogShoeSpecifications#finalPriceGte`
-  - Example line key: `com.nimbly.phshoesbackend.catalog.core.repository.jpa.CatalogShoeSpecifications#finalPriceGte:87`
-  - Example response: `{ "contractVersion":"0.1.0", "probe": { "key":"...#finalPriceGte:87", "hitCount":1, "lastHitEpochMs":1739671200000, "lineResolvable":true, "lineValidation":"resolvable" }, "capturePreview": { "available":true, "captureId":"abc123", "methodKey":"...#finalPriceGte", "capturedAtEpochMs":1739671200000, "redactionMode":"basic", "argsPreview":[{"index":0,"value":"{\"sku\":\"A1\"}","truncated":false,"originalLength":12,"redacted":false}], "returnPreview":{"value":"true","truncated":false,"originalLength":4,"redacted":false}, "thrownPreview":null, "truncatedAny":false, "executionPaths":["com.nimbly...catalog.web.controller.CatalogShoeController#getLatestCatalogShoes()#121"] }, "runtime": { "mode":"observe", "actuatorId":"", "actuateTargetKey":"", "actuateReturnBoolean":false, "serverEpochMs":1739671200123 } }`
-- `GET /__probe/capture?captureId=<capture-id>`
-  - Returns fuller captured argument/return/throw payload for the requested `captureId`.
-  - Example response: `{ "contractVersion":"0.1.0", "capture": { "captureId":"abc123", "methodKey":"...#finalPriceGte", "capturedAtEpochMs":1739671200000, "redactionMode":"basic", "args":[...], "returnValue":{...}, "thrownValue":null, "truncatedAny":false, "executionPaths":["com.nimbly...catalog.web.controller.CatalogShoeController#getLatestCatalogShoes()#121"] } }`
-- `POST /__probe/reset`
-  - Body: `{ "key":"com.nimbly.phshoesbackend.catalog.core.repository.jpa.CatalogShoeSpecifications#finalPriceGte" }`
-  - Line-key reset works the same way using `Class#method:<line>`.
-
-
+Examples are starter scaffolds for framework adoptors and are not part of default parent module wiring.

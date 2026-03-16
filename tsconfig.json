@@ -2,11 +2,14 @@
   // Visit https://aka.ms/tsconfig to read more about this file
   "compilerOptions": {
     // File Layout
-    "rootDir": "./src",
+    "rootDir": ".",
     "outDir": "./dist",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["tools/transport/tools-mcp-server/src/*"],
+      "@tools-core/*": ["tools/core/tools-core/src/*"],
+      "@tools-registry/*": ["tools/core/tools-registry/src/*"],
+      "@tools-spring/*": ["tools/synthesizers/tools-spring/src/*"]
     },
 
     // Environment Settings
@@ -46,6 +49,12 @@
     "moduleDetection": "force",
     "skipLibCheck": true,
   },
-  "include": ["src/**/*.ts"],
+  "include": [
+    "server.ts",
+    "tools/transport/tools-mcp-server/src/**/*.ts",
+    "tools/core/tools-core/src/**/*.ts",
+    "tools/core/tools-registry/src/**/*.ts",
+    "tools/synthesizers/tools-spring/src/**/*.ts"
+  ],
   "exclude": ["dist", "test", "node_modules"]
 }

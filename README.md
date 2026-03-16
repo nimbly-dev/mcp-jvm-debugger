@@ -36,12 +36,16 @@ npm.cmd run build
 mvn -f java-agent\pom.xml package
 ```
 
+Build outputs:
+- MCP server: `dist/server.js`
+- Java agent bundle: `java-agent/core/core-probe/target/mcp-java-dev-tools-agent-0.1.0-all.jar`
+
 ---
 
 ## Java Agent
 
 ```text
--javaagent:C:\Users\{desktopName}\repository\mcp-java-dev-tools\java-agent\core\target\mcp-java-dev-tools-agent-0.1.0.jar=host=0.0.0.0;port=9191;include=com.{your_workspace_root_package}.**;exclude=com.nimbly.mcpjavadevtools.agent.**,**.config.**,**Test
+-javaagent:C:\Users\{desktopName}\repository\mcp-java-dev-tools\java-agent\core\core-probe\target\mcp-java-dev-tools-agent-0.1.0.jar=host=0.0.0.0;port=9191;include=com.{your_workspace_root_package}.**;exclude=com.nimbly.mcpjavadevtools.agent.**,**.config.**,**Test
 ```
 
 Optional Java agent capture history tuning:
@@ -116,7 +120,7 @@ Non-interactive:
 
 ```bash
 ./scripts/install-integrations.sh --client codex --probe-base-url http://127.0.0.1:9193
-./scripts/install-integrations.sh --client kiro --dry-run
+./scripts/install-integrations.sh --client kiro --dev-mode --dry-run
 ./scripts/install-integrations.sh --client both --update-skill-if-exists
 ./scripts/install-integrations.sh --client codex --skill-name mcp-java-dev-tools-line-probe-run
 ./scripts/install-integrations.sh --client codex --skill-name mcp-java-dev-tools-line-probe-run --skill-name mcp-java-dev-tools-regression-suite

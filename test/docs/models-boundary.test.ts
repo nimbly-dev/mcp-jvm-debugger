@@ -4,7 +4,14 @@ const path = require("node:path");
 const test = require("node:test");
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
-const MODELS_ROOT = path.join(REPO_ROOT, "src", "models");
+const MODELS_ROOT = path.join(
+  REPO_ROOT,
+  "tools",
+  "transport",
+  "tools-mcp-server",
+  "src",
+  "models",
+);
 
 function walkTsFiles(rootDir: string): string[] {
   const out = [];

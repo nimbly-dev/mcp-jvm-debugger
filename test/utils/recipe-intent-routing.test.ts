@@ -4,7 +4,7 @@ const test = require("node:test");
 const {
   buildRoutingContext,
   resolveSelectedMode,
-} = require("@/utils/recipe_intent_routing.util");
+} = require("@tools-core/recipe_intent_routing.util");
 
 test("regression_http_only keeps regression mode and disables probe tools", () => {
   const decision = resolveSelectedMode(buildRoutingContext({ intentMode: "regression_http_only" }));

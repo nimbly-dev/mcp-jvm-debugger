@@ -9,10 +9,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/server.js",
     "test": "node --test -r ts-node/register -r tsconfig-paths/register test/**/*.test.ts",
-    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "lint:fix": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --fix",
-    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"docs/**/*.md\" \"README.md\"",
-    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" \"docs/**/*.md\" \"README.md\"",
+    "lint": "eslint \"server.ts\" \"tools/**/*.ts\" \"test/**/*.ts\"",
+    "lint:fix": "eslint \"server.ts\" \"tools/**/*.ts\" \"test/**/*.ts\" --fix",
+    "format": "prettier --write \"server.ts\" \"tools/**/*.ts\" \"test/**/*.ts\" \"docs/**/*.md\" \"README.md\"",
+    "format:check": "prettier --check \"server.ts\" \"tools/**/*.ts\" \"test/**/*.ts\" \"docs/**/*.md\" \"README.md\"",
     "deadcode:check": "ts-prune -p tsconfig.json",
     "install:integrations:sh": "bash ./scripts/install-integrations.sh"
   },
@@ -54,9 +54,9 @@
   },
   "files": [
     "dist/**",
-    "java-agent/core/target/*.jar",
-    "java-agent/core-request-mapper/target/*.jar",
-    "java-agent/request-mapper-spring/target/*.jar",
+    "java-agent/core/core-probe/target/*.jar",
+    "java-agent/core/core-request-mapper/target/*.jar",
+    "java-agent/mappers-adapters/adapter-request-mapper-spring/target/*.jar",
     "README.md"
   ]
 }

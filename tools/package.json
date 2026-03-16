@@ -1,0 +1,13 @@
+{
+  "name": "@mcp-java-dev-tools/tools-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Workspace scaffold for tool packages",
+  "workspaces": [
+    "contracts/*",
+    "core/*",
+    "synthesizers/*",
+    "transport/*",
+    "tests/*"
+  ]
+}

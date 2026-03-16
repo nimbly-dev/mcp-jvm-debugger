@@ -21,8 +21,9 @@ Options:
   --skip-skill                    Install MCP only
   --skip-mcp                      Install skill only
   --no-build                      Do not run build when dist/server.js is missing
+  --dev-mode                      Enable installer development mode
   --interactive                   Prompt for values in terminal
-  --dry-run                       Print actions without changing files/config
+  --dry-run                       Dev-only: print actions without changing files/config (requires --dev-mode)
   --help                          Show this help
 
 Behavior:
@@ -50,6 +51,7 @@ UPDATE_SKILL_IF_EXISTS=0
 BUILD_IF_MISSING=1
 INTERACTIVE=0
 DRY_RUN=0
+DEV_MODE=0
 
 if [[ $# -eq 0 ]]; then
   INTERACTIVE=1
@@ -76,6 +78,7 @@ while [[ $# -gt 0 ]]; do
     --skip-skill) SKIP_SKILL=1; shift ;;
     --skip-mcp) SKIP_MCP=1; shift ;;
     --no-build) BUILD_IF_MISSING=0; shift ;;
+    --dev-mode) DEV_MODE=1; shift ;;
     --interactive) INTERACTIVE=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     --help|-h) usage; exit 0 ;;
@@ -89,6 +92,11 @@ done
 
 if [[ "$CLIENT" != "codex" && "$CLIENT" != "kiro" && "$CLIENT" != "both" ]]; then
   echo "Invalid --client: $CLIENT" >&2
+  exit 1
+fi
+
+if [[ "$DRY_RUN" -eq 1 && "$DEV_MODE" -ne 1 ]]; then
+  echo "--dry-run is disabled by default and requires --dev-mode." >&2
   exit 1
 fi
 
@@ -159,7 +167,9 @@ if [[ "$INTERACTIVE" -eq 1 ]]; then
   if prompt_yes_no "Install Skill?" "y"; then SKIP_SKILL=0; else SKIP_SKILL=1; fi
   if prompt_yes_no "Install MCP?" "y"; then SKIP_MCP=0; else SKIP_MCP=1; fi
   if prompt_yes_no "Update existing skill installs?" "n"; then UPDATE_SKILL_IF_EXISTS=1; fi
-  if prompt_yes_no "Dry run only?" "n"; then DRY_RUN=1; fi
+  if [[ "$DEV_MODE" -eq 1 ]]; then
+    if prompt_yes_no "Dry run only?" "n"; then DRY_RUN=1; fi
+  fi
 fi
 
 if [[ "$CLIENT" != "codex" && "$CLIENT" != "kiro" && "$CLIENT" != "both" ]]; then
@@ -195,7 +205,11 @@ if [[ "$SKIP_SKILL" -eq 1 && "$SKIP_MCP" -eq 1 ]]; then
   exit 0
 fi
 
-echo "Installing integrations (client=$CLIENT, dryRun=$DRY_RUN)"
+echo "Installing integrations (client=$CLIENT, dryRun=$DRY_RUN, devMode=$DEV_MODE)"
+if [[ "$DEV_MODE" -eq 1 ]]; then
+  echo "- Installer repo root: $REPO_ROOT"
+  echo "- MCP server build target: $SERVER_JS_PATH"
+fi
 
 ensure_build() {
   if [[ -f "$SERVER_JS_PATH" ]]; then

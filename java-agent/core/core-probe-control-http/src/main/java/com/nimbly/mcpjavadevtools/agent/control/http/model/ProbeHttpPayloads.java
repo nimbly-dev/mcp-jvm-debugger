@@ -1,0 +1,169 @@
+package com.nimbly.mcpjavadevtools.agent.control.http.model;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+
+import java.util.List;
+
+public final class ProbeHttpPayloads {
+  private ProbeHttpPayloads() {}
+
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  public record ErrorEnvelope(
+      String error,
+      String scope
+  ) {}
+
+  public record CaptureNotFoundEnvelope(
+      String contractVersion,
+      String error,
+      String captureId
+  ) {}
+
+  public record StatusEnvelope(
+      String contractVersion,
+      ProbePayload probe,
+      CapturePreviewPayload capturePreview,
+      RuntimePayload runtime
+  ) {}
+
+  public record StatusBatchRow(
+      boolean ok,
+      ProbePayload probe,
+      CapturePreviewPayload capturePreview,
+      RuntimePayload runtime
+  ) {}
+
+  public record StatusBatchEnvelope(
+      String contractVersion,
+      boolean ok,
+      int count,
+      List<StatusBatchRow> results
+  ) {}
+
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  public record ResetEnvelope(
+      String contractVersion,
+      boolean ok,
+      String key,
+      Boolean lineResolvable,
+      String lineValidation
+  ) {}
+
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  public record ResetRow(
+      boolean ok,
+      String key,
+      Boolean lineResolvable,
+      String lineValidation
+  ) {}
+
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  public record ResetBatchEnvelope(
+      String contractVersion,
+      boolean ok,
+      String selector,
+      String className,
+      int count,
+      List<ResetRow> results,
+      String reason
+  ) {}
+
+  public record ActuateEnvelope(
+      String contractVersion,
+      boolean ok,
+      String mode,
+      String actuatorId,
+      String targetKey,
+      boolean returnBoolean
+  ) {}
+
+  public record CaptureEnvelope(
+      String contractVersion,
+      CaptureRecordPayload capture
+  ) {}
+
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  public record ProbePayload(
+      String key,
+      long hitCount,
+      long lastHitEpochMs,
+      Boolean lineResolvable,
+      String lineValidation
+  ) {}
+
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  public record CapturePreviewPayload(
+      boolean available,
+      String redactionMode,
+      String captureId,
+      String methodKey,
+      Long capturedAtEpochMs,
+      List<CapturePreviewArgPayload> argsPreview,
+      CapturePreviewValuePayload returnPreview,
+      CapturePreviewValuePayload thrownPreview,
+      Boolean truncatedAny,
+      List<String> executionPaths
+  ) {}
+
+  public record CapturePreviewArgPayload(
+      int index,
+      boolean truncated,
+      int originalLength,
+      boolean redacted
+  ) {}
+
+  public record CapturePreviewValuePayload(
+      boolean truncated,
+      int originalLength,
+      boolean redacted
+  ) {}
+
+  public record RuntimePayload(
+      String mode,
+      String actuatorId,
+      String actuateTargetKey,
+      boolean actuateReturnBoolean,
+      long serverEpochMs,
+      RuntimeStringSignalPayload applicationType,
+      RuntimePortSignalPayload appPort
+  ) {}
+
+  public record RuntimeStringSignalPayload(
+      String value,
+      String source,
+      double confidence
+  ) {}
+
+  public record RuntimePortSignalPayload(
+      Integer value,
+      String source,
+      double confidence
+  ) {}
+
+  public record CaptureRecordPayload(
+      String captureId,
+      String methodKey,
+      long capturedAtEpochMs,
+      String redactionMode,
+      List<CaptureArgPayload> args,
+      CaptureValuePayload returnValue,
+      CaptureValuePayload thrownValue,
+      boolean truncatedAny,
+      List<String> executionPaths
+  ) {}
+
+  public record CaptureArgPayload(
+      int index,
+      String value,
+      boolean truncated,
+      int originalLength,
+      boolean redacted
+  ) {}
+
+  public record CaptureValuePayload(
+      String value,
+      boolean truncated,
+      int originalLength,
+      boolean redacted
+  ) {}
+}

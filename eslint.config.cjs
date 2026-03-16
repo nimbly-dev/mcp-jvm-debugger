@@ -4,7 +4,7 @@ const tsPlugin = require("@typescript-eslint/eslint-plugin");
 /** @type {import("eslint").Linter.FlatConfig[]} */
 module.exports = [
   {
-    files: ["src/**/*.ts", "test/**/*.ts"],
+    files: ["server.ts", "tools/**/*.ts", "test/**/*.ts"],
     languageOptions: {
       parser: tsParser,
       parserOptions: {

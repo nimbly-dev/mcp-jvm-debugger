@@ -4,7 +4,14 @@ const path = require("node:path");
 const test = require("node:test");
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
-const SERVER_PATH = path.join(REPO_ROOT, "src", "server.ts");
+const SERVER_PATH = path.join(
+  REPO_ROOT,
+  "tools",
+  "transport",
+  "tools-mcp-server",
+  "src",
+  "server.ts",
+);
 const DOC_PATH = path.join(REPO_ROOT, "docs", "data-fields", "README.md");
 
 function readRegisteredTools() {

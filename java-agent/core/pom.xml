@@ -11,112 +11,15 @@
     <relativePath>../pom.xml</relativePath>
   </parent>
 
-  <artifactId>mcp-java-dev-tools-agent</artifactId>
-  <version>0.1.0</version>
-  <packaging>jar</packaging>
-  <name>mcp-java-dev-tools-agent</name>
+  <artifactId>mcp-java-dev-tools-agent-core-parent</artifactId>
+  <packaging>pom</packaging>
+  <name>mcp-java-dev-tools-agent-core-parent</name>
 
-  <properties>
-    <maven.compiler.release>17</maven.compiler.release>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <bytebuddy.version>1.14.19</bytebuddy.version>
-    <agent.bundle.classifier>minimal</agent.bundle.classifier>
-  </properties>
-
-  <dependencies>
-    <dependency>
-      <groupId>net.bytebuddy</groupId>
-      <artifactId>byte-buddy</artifactId>
-      <version>${bytebuddy.version}</version>
-    </dependency>
-  </dependencies>
-
-  <profiles>
-    <profile>
-      <id>minimal</id>
-      <properties>
-        <agent.bundle.classifier>minimal</agent.bundle.classifier>
-      </properties>
-    </profile>
-    <profile>
-      <id>spring</id>
-      <properties>
-        <agent.bundle.classifier>spring</agent.bundle.classifier>
-      </properties>
-      <dependencies>
-        <dependency>
-          <groupId>com.nimbly</groupId>
-          <artifactId>mcp-java-dev-tools-core-request-mapper</artifactId>
-          <version>${project.version}</version>
-        </dependency>
-        <dependency>
-          <groupId>com.nimbly</groupId>
-          <artifactId>mcp-java-dev-tools-request-mapper-spring</artifactId>
-          <version>${project.version}</version>
-        </dependency>
-      </dependencies>
-    </profile>
-    <profile>
-      <id>all</id>
-      <activation>
-        <activeByDefault>true</activeByDefault>
-      </activation>
-      <properties>
-        <agent.bundle.classifier>all</agent.bundle.classifier>
-      </properties>
-      <dependencies>
-        <dependency>
-          <groupId>com.nimbly</groupId>
-          <artifactId>mcp-java-dev-tools-core-request-mapper</artifactId>
-          <version>${project.version}</version>
-        </dependency>
-        <dependency>
-          <groupId>com.nimbly</groupId>
-          <artifactId>mcp-java-dev-tools-request-mapper-spring</artifactId>
-          <version>${project.version}</version>
-        </dependency>
-      </dependencies>
-    </profile>
-  </profiles>
-
-  <build>
-    <resources>
-      <resource>
-        <directory>src/main/resources</directory>
-        <filtering>true</filtering>
-      </resource>
-    </resources>
-    <plugins>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-shade-plugin</artifactId>
-        <version>3.5.3</version>
-        <executions>
-          <execution>
-            <phase>package</phase>
-            <goals>
-              <goal>shade</goal>
-            </goals>
-            <configuration>
-              <createDependencyReducedPom>false</createDependencyReducedPom>
-              <shadedArtifactAttached>false</shadedArtifactAttached>
-              <finalName>${project.artifactId}-${project.version}-${agent.bundle.classifier}</finalName>
-              <transformers>
-                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
-                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                  <manifestEntries>
-                    <Premain-Class>com.nimbly.mcpjavadevtools.agent.bootstrap.ProbeAgent</Premain-Class>
-                    <Can-Redefine-Classes>true</Can-Redefine-Classes>
-                    <Can-Retransform-Classes>true</Can-Retransform-Classes>
-                  </manifestEntries>
-                </transformer>
-              </transformers>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-    </plugins>
-  </build>
+  <modules>
+    <module>core-probe-runtime</module>
+    <module>core-probe-instrumentation</module>
+    <module>core-probe-control-http</module>
+    <module>core-probe</module>
+    <module>core-request-mapper</module>
+  </modules>
 </project>
-
-

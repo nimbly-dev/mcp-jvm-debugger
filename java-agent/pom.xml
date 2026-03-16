@@ -16,7 +16,7 @@
 
   <modules>
     <module>core</module>
-    <module>core-request-mapper</module>
-    <module>request-mapper-spring</module>
+    <module>mappers-adapters</module>
+    <module>tests</module>
   </modules>
 </project>
