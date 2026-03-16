@@ -1,7 +1,3 @@
-Here's the rewrite:
-
----
-
 # How It Works
 
 This document walks you through how `mcp-java-dev-tools` operates in practice — what it needs to run, how the orchestration flow works, and what each use case looks like end-to-end.
