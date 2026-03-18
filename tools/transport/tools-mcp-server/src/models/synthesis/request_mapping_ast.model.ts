@@ -14,6 +14,7 @@ export type JvmAstRequestMappingReasonCode =
 
 export type JvmAstRequestMappingInput = {
   projectRootAbs: string;
+  searchRootsAbs?: string[];
   classHint: string;
   methodHint: string;
   lineHint?: number;
