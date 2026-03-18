@@ -11,6 +11,7 @@ import { SPRING_FAILURE_CODES } from "@tools-spring-http/failure_codes.util";
 export type SynthesizeSpringRecipeDeps = {
   resolveRequestMappingFn?: (input: {
     projectRootAbs: string;
+    searchRootsAbs?: string[];
     classHint: string;
     methodHint: string;
     lineHint?: number;
@@ -69,6 +70,7 @@ export async function synthesizeSpringRecipe(
   const resolveRequestMappingFn = deps.resolveRequestMappingFn ?? resolveRequestMappingAst;
   const resolved = await resolveRequestMappingFn({
     projectRootAbs: input.rootAbs,
+    ...(input.searchRootsAbs.length > 0 ? { searchRootsAbs: input.searchRootsAbs } : {}),
     classHint: input.classHint,
     methodHint: input.methodHint,
     ...(typeof input.lineHint === "number" ? { lineHint: input.lineHint } : {}),

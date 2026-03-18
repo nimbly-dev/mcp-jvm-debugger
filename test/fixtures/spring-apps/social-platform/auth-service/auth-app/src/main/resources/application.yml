@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: social-auth-app
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+server:
+  port: 18081

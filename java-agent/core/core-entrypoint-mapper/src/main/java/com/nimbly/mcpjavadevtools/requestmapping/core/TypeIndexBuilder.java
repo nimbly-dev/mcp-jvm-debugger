@@ -11,8 +11,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 public final class TypeIndexBuilder {
@@ -20,11 +22,23 @@ public final class TypeIndexBuilder {
     }
 
     public static TypeIndex build(Path projectRoot) {
+        return build(List.of(projectRoot));
+    }
+
+    public static TypeIndex build(List<Path> roots) {
         Map<String, List<TypeDescriptor>> bySimpleName = new HashMap<>();
         Map<String, List<TypeDescriptor>> byFqcn = new HashMap<>();
         int typeCount = 0;
+        Set<Path> moduleRoots = new LinkedHashSet<>();
 
-        for (Path moduleRoot : SourceRootsScanner.discoverModuleRoots(projectRoot)) {
+        for (Path root : roots) {
+            if (root == null) {
+                continue;
+            }
+            moduleRoots.addAll(SourceRootsScanner.discoverModuleRoots(root));
+        }
+
+        for (Path moduleRoot : moduleRoots) {
             for (Path sourceRoot : SourceRootsScanner.sourceRootsForModule(moduleRoot)) {
                 if (!Files.isDirectory(sourceRoot)) {
                     continue;

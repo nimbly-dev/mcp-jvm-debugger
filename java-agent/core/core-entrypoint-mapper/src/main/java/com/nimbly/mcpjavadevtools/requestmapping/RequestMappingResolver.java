@@ -60,7 +60,21 @@ public final class RequestMappingResolver {
             );
         }
 
-        TypeIndex index = TypeIndexBuilder.build(projectRoot);
+        List<Path> scanRoots = new ArrayList<>();
+        scanRoots.add(projectRoot);
+        if (request.searchRootsAbs != null) {
+            for (String searchRoot : request.searchRootsAbs) {
+                if (searchRoot == null || searchRoot.isBlank()) {
+                    continue;
+                }
+                Path candidate = Paths.get(searchRoot).toAbsolutePath().normalize();
+                if (Files.isDirectory(candidate) && !scanRoots.contains(candidate)) {
+                    scanRoots.add(candidate);
+                }
+            }
+        }
+
+        TypeIndex index = TypeIndexBuilder.build(scanRoots);
         if (index.getTypeCount() == 0) {
             return failure(
                     "target_type_not_found",

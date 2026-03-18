@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: social-post-app
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+server:
+  port: 18083
