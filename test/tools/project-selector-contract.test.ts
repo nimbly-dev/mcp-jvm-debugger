@@ -6,6 +6,7 @@ const test = require("node:test");
 
 const { registerRecipeCreateTool } = require("@/tools/core/recipe_generate/handler");
 const { registerTargetInferTool } = require("@/tools/core/target_infer/handler");
+const recipeGenerateDomain = require("@/tools/core/recipe_generate/domain");
 
 type RegisteredToolHandler = (input: Record<string, unknown>) => Promise<{
   structuredContent: Record<string, unknown>;
@@ -66,6 +67,7 @@ test("probe_recipe_create fails closed when legacy selector fields are provided"
     registerRecipeCreateTool(server, {
       probeBaseUrl: "http://127.0.0.1:9193",
       probeStatusPath: "/__probe/status",
+      workspaceRootAbs: "C:\\repo",
     }),
   );
 
@@ -109,6 +111,7 @@ test("probe_recipe_create requires explicit projectRootAbs", async () => {
     registerRecipeCreateTool(server, {
       probeBaseUrl: "http://127.0.0.1:9193",
       probeStatusPath: "/__probe/status",
+      workspaceRootAbs: "C:\\repo",
     }),
   );
 
@@ -143,6 +146,7 @@ test("probe_recipe_create fails closed when classHint is not an FQCN", async () 
     registerRecipeCreateTool(server, {
       probeBaseUrl: "http://127.0.0.1:9193",
       probeStatusPath: "/__probe/status",
+      workspaceRootAbs: "C:\\repo",
     }),
   );
 
@@ -161,6 +165,79 @@ test("probe_recipe_create fails closed when classHint is not an FQCN", async () 
   assert.equal(Array.isArray(out.structuredContent.evidence), true);
   assert.equal(Array.isArray(out.structuredContent.attemptedStrategies), true);
   assert.match(out.structuredContent.nextAction, /Provide exact FQCN/i);
+});
+
+test("probe_recipe_create passes configured workspace root into generateRecipe", async () => {
+  await withTempDir(async (dir: string) => {
+    const workspaceRootAbs = path.join(dir, "..", "workspace-root");
+    let capturedArgs: Record<string, unknown> | undefined;
+    const originalGenerateRecipe = recipeGenerateDomain.generateRecipe;
+    recipeGenerateDomain.generateRecipe = async (args: Record<string, unknown>) => {
+      capturedArgs = args;
+      return {
+        requestCandidates: [],
+        executionPlan: {
+          selectedMode: "regression_http_only",
+          routingReason: "regression_http_only_no_probe",
+          steps: [],
+          probeCallPlan: {
+            total: 0,
+            verificationMethod: "probe_wait_for_hit",
+            actuated: false,
+            byTool: {
+              probe_reset: 0,
+              probe_wait_for_hit: 0,
+              probe_get_status: 0,
+              probe_enable: 0,
+            },
+          },
+        },
+        resultType: "report",
+        status: "api_request_not_inferred",
+        selectedMode: "regression_http_only",
+        lineTargetProvided: false,
+        probeIntentRequested: false,
+        executionReadiness: "needs_user_input",
+        missingInputs: [],
+        attemptedStrategies: [],
+        evidence: [],
+        inferenceDiagnostics: {
+          target: { attempted: true, matched: false, candidateCount: 0 },
+          request: { attempted: true, matched: false },
+        },
+        auth: {
+          required: "unknown",
+          status: "unknown",
+          strategy: "unknown",
+          nextAction: "none",
+          notes: [],
+        },
+        notes: [],
+      };
+    };
+
+    try {
+      const handler = captureRegisteredHandler((server: any) =>
+        registerRecipeCreateTool(server, {
+          probeBaseUrl: "http://127.0.0.1:9193",
+          probeStatusPath: "/__probe/status",
+          workspaceRootAbs,
+        }),
+      );
+
+      await handler({
+        projectRootAbs: dir,
+        classHint: "com.example.CatalogController",
+        methodHint: "listCatalogShoes",
+        intentMode: "regression_http_only",
+      });
+    } finally {
+      recipeGenerateDomain.generateRecipe = originalGenerateRecipe;
+    }
+
+    assert.equal(capturedArgs?.rootAbs, dir);
+    assert.equal(capturedArgs?.workspaceRootAbs, workspaceRootAbs);
+  });
 });
 
 test("probe_target_infer ranked_candidates requires exact classHint", async () => {

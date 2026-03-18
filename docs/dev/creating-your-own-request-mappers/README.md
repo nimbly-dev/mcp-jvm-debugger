@@ -37,7 +37,7 @@ Place your implementation in:
 java-agent/mappers-adapters/adapter-request-mapper-<framework>
 ```
 
-For example: `adapter-request-mapper-jaxrs`, `adapter-request-mapper-quarkus`
+For example: `adapter-request-mapper-jaxrs-http`, `adapter-request-mapper-grpc-rpc`
 
 ---
 
@@ -57,7 +57,7 @@ For example: `adapter-request-mapper-jaxrs`, `adapter-request-mapper-quarkus`
 
 | Do | Don't |
 |---|---|
-| Keep `strategyId()` stable and specific | Put framework-specific code in `core-request-mapper` |
+| Keep `strategyId()` stable and specific | Put framework-specific code in `core-entrypoint-mapper` |
 | Treat composed annotations (`@Get`, `@Post`) as first-class | Return a mapping when only part of the route is proven |
 | Support both `path` and `value` attributes when the framework uses both | Rely on naming conventions instead of annotation evidence |
 | Handle constant references and string concatenation | Convert unresolved expressions into fake paths |

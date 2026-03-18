@@ -1,6 +1,6 @@
 import type { SynthesizerInput } from "@/models/synthesis/synthesizer_input.model";
 import type { SynthesizerFailure } from "@/models/synthesis/synthesizer_failure.model";
-import { springSynthesizerPlugin } from "@tools-spring/plugin";
+import { springSynthesizerPlugin } from "@tools-spring-http/plugin";
 import { assertPluginCompatibility } from "@tools-registry/plugin.compat";
 import type { SynthesizerPlugin, SynthesizerResult } from "@tools-registry/plugin.contract";
 

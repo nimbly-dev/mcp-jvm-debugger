@@ -20,6 +20,6 @@
     <module>core-probe-instrumentation</module>
     <module>core-probe-control-http</module>
     <module>core-probe</module>
-    <module>core-request-mapper</module>
+    <module>core-entrypoint-mapper</module>
   </modules>
 </project>

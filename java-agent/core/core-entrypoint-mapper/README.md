@@ -1,11 +1,11 @@
-# Core Request Mapper
+# Core Entrypoint Mapper
 
-Framework-agnostic Java AST request-mapping resolver used by `probe_recipe_create` synthesis.
+Framework-agnostic Java AST entrypoint resolver used by `probe_recipe_create` synthesis.
 
 ## File Tree Packaging
 
 ```text
-java-agent/core/core-request-mapper/src/main/java/com/nimbly/mcpjavadevtools/requestmapping
+java-agent/core/core-entrypoint-mapper/src/main/java/com/nimbly/mcpjavadevtools/requestmapping
 |- api/
 |- ast/
 |- core/

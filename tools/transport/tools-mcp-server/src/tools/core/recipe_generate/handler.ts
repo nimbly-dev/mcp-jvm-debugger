@@ -12,6 +12,7 @@ import { RECIPE_CREATE_TOOL } from "@/tools/core/recipe_generate/contract";
 export type RecipeGenerateHandlerDeps = {
   probeBaseUrl: string;
   probeStatusPath: string;
+  workspaceRootAbs: string;
 };
 
 function isFqcn(value: string): boolean {
@@ -194,7 +195,7 @@ export function registerRecipeCreateTool(
 
       const generateArgs: Parameters<typeof generateRecipe>[0] = {
         rootAbs: projectRoot,
-        workspaceRootAbs: projectRoot,
+        workspaceRootAbs: deps.workspaceRootAbs,
         classHint,
         methodHint,
         intentMode,

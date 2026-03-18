@@ -1,0 +1,5 @@
+# gRPC/RPC Synthesizer Placeholder
+
+This package is a placeholder for future transport-specific synthesizer work.
+
+No runtime implementation is registered from this package yet.

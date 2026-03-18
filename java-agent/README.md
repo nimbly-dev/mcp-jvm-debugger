@@ -7,8 +7,8 @@ Grouped module layout with non-breaking artifact names.
 - `core/core-probe-runtime` (`mcp-java-dev-tools-core-probe-runtime`)
 - `core/core-probe-instrumentation` (`mcp-java-dev-tools-core-probe-instrumentation`)
 - `core/core-probe-control-http` (`mcp-java-dev-tools-core-probe-control-http`)
-- `core/core-request-mapper` (`mcp-java-dev-tools-core-request-mapper`)
-- `mappers-adapters/adapter-request-mapper-spring` (`mcp-java-dev-tools-adapter-request-mapper-spring`)
+- `core/core-entrypoint-mapper` (`mcp-java-dev-tools-core-entrypoint-mapper`)
+- `mappers-adapters/adapter-request-mapper-spring-http` (`mcp-java-dev-tools-adapter-request-mapper-spring-http`)
 - `request-mapping-resolver` (legacy compatibility artifact, optional)
 
 ## Build entrypoint
@@ -28,3 +28,9 @@ These test modules are placeholders only for now; no generated test code was add
 - `mappers-adapters/adapter-request-mapper-example`
 
 Examples are starter scaffolds for framework adoptors and are not part of default parent module wiring.
+
+## Placeholder adapters
+- `mappers-adapters/adapter-request-mapper-jaxrs-http`
+- `mappers-adapters/adapter-request-mapper-grpc-rpc`
+
+These folders are placeholders only. Spring HTTP is the only active request-mapper adapter today.

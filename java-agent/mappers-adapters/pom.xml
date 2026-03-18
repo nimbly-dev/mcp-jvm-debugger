@@ -16,6 +16,6 @@
   <name>mcp-java-dev-tools-mappers-adapters-parent</name>
 
   <modules>
-    <module>adapter-request-mapper-spring</module>
+    <module>adapter-request-mapper-spring-http</module>
   </modules>
 </project>

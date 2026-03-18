@@ -11,9 +11,9 @@
     <relativePath>../../pom.xml</relativePath>
   </parent>
 
-  <artifactId>mcp-java-dev-tools-core-request-mapper</artifactId>
+  <artifactId>mcp-java-dev-tools-core-entrypoint-mapper</artifactId>
   <packaging>jar</packaging>
-  <name>mcp-java-dev-tools-core-request-mapper</name>
+  <name>mcp-java-dev-tools-core-entrypoint-mapper</name>
 
   <properties>
     <maven.compiler.release>17</maven.compiler.release>

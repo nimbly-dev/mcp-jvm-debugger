@@ -1,4 +1,4 @@
-export { springSynthesizerPlugin } from "@tools-spring/plugin";
+export { springSynthesizerPlugin } from "@tools-spring-http/plugin";
 export type {
   SpringCallerMethodCandidate,
   SpringControllerParam,
@@ -6,4 +6,4 @@ export type {
   SpringEndpointMapping,
   SpringMethodCallContext,
   SpringParamType,
-} from "@tools-spring/models/request_candidate.model";
+} from "@tools-spring-http/models/request_candidate.model";

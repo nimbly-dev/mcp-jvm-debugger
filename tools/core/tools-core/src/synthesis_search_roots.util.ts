@@ -15,7 +15,7 @@ export function buildSearchRoots(rootAbs: string, workspaceRootAbs: string): str
   }
 
   const normalizedWorkspace = path.resolve(workspaceRootAbs);
-  if (normalizedRoot === normalizedWorkspace) {
+  if (normalizedWorkspace) {
     roots.push(normalizedWorkspace);
   }
 

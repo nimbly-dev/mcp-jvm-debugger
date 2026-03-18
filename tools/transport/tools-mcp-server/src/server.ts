@@ -95,6 +95,7 @@ async function main() {
   registerRecipeCreateTool(server, {
     probeBaseUrl: cfg.probeBaseUrl,
     probeStatusPath,
+    workspaceRootAbs: cfg.workspaceRootAbs,
   });
   registerProbeTools(server, {
     probeBaseUrl: cfg.probeBaseUrl,
