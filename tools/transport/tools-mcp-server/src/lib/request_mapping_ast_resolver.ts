@@ -108,6 +108,28 @@ async function resolveLaunch(): Promise<ResolverLaunch | undefined> {
             repoRoot,
             "java-agent",
             "core",
+            "core-entrypoint-mapper",
+            "target",
+            `mcp-java-dev-tools-core-entrypoint-mapper-${version}-all.jar`,
+          ),
+        },
+        {
+          repoRoot,
+          jarAbs: path.join(
+            repoRoot,
+            "java-agent",
+            "core",
+            "core-entrypoint-mapper",
+            "target",
+            `mcp-java-dev-tools-core-entrypoint-mapper-${version}.jar`,
+          ),
+        },
+        {
+          repoRoot,
+          jarAbs: path.join(
+            repoRoot,
+            "java-agent",
+            "core",
             "core-request-mapper",
             "target",
             `mcp-java-dev-tools-core-request-mapper-${version}-all.jar`,
@@ -125,17 +147,30 @@ async function resolveLaunch(): Promise<ResolverLaunch | undefined> {
           ),
         },
       );
-      springPluginCandidates.push({
-        repoRoot,
-        jarAbs: path.join(
+      springPluginCandidates.push(
+        {
           repoRoot,
-          "java-agent",
-          "mappers-adapters",
-          "adapter-request-mapper-spring",
-          "target",
-          `mcp-java-dev-tools-adapter-request-mapper-spring-${version}.jar`,
-        ),
-      });
+          jarAbs: path.join(
+            repoRoot,
+            "java-agent",
+            "mappers-adapters",
+            "adapter-request-mapper-spring-http",
+            "target",
+            `mcp-java-dev-tools-adapter-request-mapper-spring-http-${version}.jar`,
+          ),
+        },
+        {
+          repoRoot,
+          jarAbs: path.join(
+            repoRoot,
+            "java-agent",
+            "mappers-adapters",
+            "adapter-request-mapper-spring-http",
+            "target",
+            `mcp-java-dev-tools-adapter-request-mapper-spring-${version}.jar`,
+          ),
+        },
+      );
       legacyCandidates.push(
         {
           repoRoot,

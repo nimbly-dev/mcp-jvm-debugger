@@ -6,7 +6,7 @@ import type {
 } from "@/models/synthesis/request_mapping_ast.model";
 import type { SynthesizerOutput } from "@/models/synthesis/synthesizer_output.model";
 import { resolveRequestMappingAst } from "@/lib/request_mapping_ast_resolver";
-import { SPRING_FAILURE_CODES } from "@tools-spring/failure_codes.util";
+import { SPRING_FAILURE_CODES } from "@tools-spring-http/failure_codes.util";
 
 export type SynthesizeSpringRecipeDeps = {
   resolveRequestMappingFn?: (input: {

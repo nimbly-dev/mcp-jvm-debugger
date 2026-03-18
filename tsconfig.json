@@ -9,7 +9,7 @@
       "@/*": ["tools/transport/tools-mcp-server/src/*"],
       "@tools-core/*": ["tools/core/tools-core/src/*"],
       "@tools-registry/*": ["tools/core/tools-registry/src/*"],
-      "@tools-spring/*": ["tools/synthesizers/tools-spring/src/*"]
+      "@tools-spring-http/*": ["tools/synthesizers/tools-spring-http/src/*"]
     },
 
     // Environment Settings
@@ -54,7 +54,7 @@
     "tools/transport/tools-mcp-server/src/**/*.ts",
     "tools/core/tools-core/src/**/*.ts",
     "tools/core/tools-registry/src/**/*.ts",
-    "tools/synthesizers/tools-spring/src/**/*.ts"
+    "tools/synthesizers/tools-spring-http/src/**/*.ts"
   ],
   "exclude": ["dist", "test", "node_modules"]
 }

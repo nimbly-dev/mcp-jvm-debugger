@@ -4,7 +4,7 @@ const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 
-const { isSpringProject } = require("@tools-spring/detect.util");
+const { isSpringProject } = require("@tools-spring-http/detect.util");
 
 test("spring detection finds nested module markers under multi-module root", async () => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "spring-detect-"));

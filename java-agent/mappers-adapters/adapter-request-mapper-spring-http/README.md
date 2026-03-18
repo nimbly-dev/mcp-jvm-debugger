@@ -1,21 +1,21 @@
-# Spring Request Mapper Plugin
+# Spring HTTP Request Mapper Plugin
 
 Spring MVC mapping extractor plugin for the Java AST request-mapper SPI.
 
 ## File Tree Packaging
 
 ```text
-java-agent/mappers-adapters/adapter-request-mapper-spring/src/main/java/com/nimbly/mcpjavadevtools/requestmapping/extractor/spring
+java-agent/mappers-adapters/adapter-request-mapper-spring-http/src/main/java/com/nimbly/mcpjavadevtools/requestmapping/extractor/spring
 \- (Spring extractor implementation classes)
 
-java-agent/mappers-adapters/adapter-request-mapper-spring/src/main/resources/META-INF/services
+java-agent/mappers-adapters/adapter-request-mapper-spring-http/src/main/resources/META-INF/services
 \- com.nimbly.mcpjavadevtools.requestmapping.extractor.MappingExtractor
 ```
 
 ## Organization
 
 - Implements Spring-specific annotation extraction and merge behavior only.
-- Depends on `core-request-mapper` contracts/SPI.
+- Depends on `core-entrypoint-mapper` contracts/SPI.
 - Registered as a `ServiceLoader` provider for `MappingExtractor`.
 - No probe runtime or javaagent instrumentation logic belongs in this module.
 

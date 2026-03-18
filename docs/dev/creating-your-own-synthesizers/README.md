@@ -36,7 +36,8 @@ tools/synthesizers/tools-<framework>
 ```
 
 For example:
-- `tools-jaxrs`
+- `tools-jaxrs-http`
+- `tools-grpc-rpc`
 - `tools-quarkus`
 
 ---

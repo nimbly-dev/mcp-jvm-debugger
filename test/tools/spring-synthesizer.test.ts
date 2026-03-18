@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { synthesizeSpringRecipe } = require("@tools-spring/synthesis.util");
+const { synthesizeSpringRecipe } = require("@tools-spring-http/synthesis.util");
 
 test("spring synthesizer maps AST resolver success into a request recipe", async () => {
   const result = await synthesizeSpringRecipe(

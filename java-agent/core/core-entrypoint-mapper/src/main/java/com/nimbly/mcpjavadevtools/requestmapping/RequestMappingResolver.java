@@ -123,7 +123,7 @@ public final class RequestMappingResolver {
             return failure(
                     "mapper_plugin_unavailable",
                     "extractor_plugin_discovery",
-                    "No mapping extractor plugin is loaded. Include adapter-request-mapper-spring on resolver classpath or build spring/all bundles and rerun request mapping resolution.",
+                    "No mapping extractor plugin is loaded. Include adapter-request-mapper-spring-http on resolver classpath or build spring/all bundles and rerun request mapping resolution.",
                     List.of(
                             "loadedExtractors=0",
                             "classHint=" + safe(request.classHint),

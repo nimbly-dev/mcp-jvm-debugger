@@ -1,6 +1,6 @@
 import type { SynthesizerInput } from "@/models/synthesis/synthesizer_input.model";
-import { isSpringProject } from "@tools-spring/detect.util";
-import { synthesizeSpringRecipe } from "@tools-spring/synthesis.util";
+import { isSpringProject } from "@tools-spring-http/detect.util";
+import { synthesizeSpringRecipe } from "@tools-spring-http/synthesis.util";
 import { SYNTHESIZER_PLUGIN_API_VERSION } from "@tools-registry/plugin.compat";
 import type { SynthesizerPlugin } from "@tools-registry/plugin.contract";
 

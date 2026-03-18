@@ -7,8 +7,9 @@ This folder is the workspace-style scaffold for TS tool packages.
 - `core/tools-core`
 - `core/tools-registry`
 - `synthesizers/tools-synthesizer-api`
-- `synthesizers/tools-spring`
-- `synthesizers/tools-jaxrs`
+- `synthesizers/tools-spring-http`
+- `synthesizers/tools-jaxrs-http`
+- `synthesizers/tools-grpc-rpc`
 - `transport/tools-mcp-server`
 
 ## Test groups
@@ -23,6 +24,12 @@ This scaffold is intentionally lightweight and non-breaking.
 
 Example packages are starter scaffolds for framework adoptors and are not included in default runtime registration or TS build include paths.
 
+## Placeholder packages
+- `synthesizers/tools-jaxrs-http`
+- `synthesizers/tools-grpc-rpc`
+
+These are folder-level placeholders only. Spring HTTP is the only active synthesizer implementation today.
+
 ## Active runtime packages
 - MCP transport/server entrypoint code:
   - `transport/tools-mcp-server/src`
@@ -30,5 +37,5 @@ Example packages are starter scaffolds for framework adoptors and are not includ
   - `core/tools-core/src`
 - Synthesizer plugin registry runtime:
   - `core/tools-registry/src`
-- Spring synthesizer runtime implementation:
-  - `synthesizers/tools-spring/src`
+- Spring HTTP synthesizer runtime implementation:
+  - `synthesizers/tools-spring-http/src`

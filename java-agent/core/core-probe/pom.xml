@@ -54,12 +54,12 @@
       <dependencies>
         <dependency>
           <groupId>com.nimbly</groupId>
-          <artifactId>mcp-java-dev-tools-core-request-mapper</artifactId>
+          <artifactId>mcp-java-dev-tools-core-entrypoint-mapper</artifactId>
           <version>${project.version}</version>
         </dependency>
         <dependency>
           <groupId>com.nimbly</groupId>
-          <artifactId>mcp-java-dev-tools-adapter-request-mapper-spring</artifactId>
+          <artifactId>mcp-java-dev-tools-adapter-request-mapper-spring-http</artifactId>
           <version>${project.version}</version>
         </dependency>
       </dependencies>
@@ -75,12 +75,12 @@
       <dependencies>
         <dependency>
           <groupId>com.nimbly</groupId>
-          <artifactId>mcp-java-dev-tools-core-request-mapper</artifactId>
+          <artifactId>mcp-java-dev-tools-core-entrypoint-mapper</artifactId>
           <version>${project.version}</version>
         </dependency>
         <dependency>
           <groupId>com.nimbly</groupId>
-          <artifactId>mcp-java-dev-tools-adapter-request-mapper-spring</artifactId>
+          <artifactId>mcp-java-dev-tools-adapter-request-mapper-spring-http</artifactId>
           <version>${project.version}</version>
         </dependency>
       </dependencies>
