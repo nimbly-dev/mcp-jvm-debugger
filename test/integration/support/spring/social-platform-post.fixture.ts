@@ -1,3 +1,4 @@
+import * as fsSync from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { spawn } from "node:child_process";
@@ -7,7 +8,35 @@ import { setTimeout as delay } from "node:timers/promises";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
-export const repoRootAbs = path.resolve(__dirname, "..", "..", "..");
+function resolveRepoRoot(startDirAbs: string): string {
+  let currentDirAbs = path.resolve(startDirAbs);
+
+  while (true) {
+    const packageJsonAbs = path.join(currentDirAbs, "package.json");
+    if (fsSync.existsSync(packageJsonAbs)) {
+      try {
+        const packageJson = JSON.parse(fsSync.readFileSync(packageJsonAbs, "utf8")) as {
+          name?: string;
+        };
+        if (packageJson.name === "mcp-java-dev-tools") {
+          return currentDirAbs;
+        }
+      } catch {
+        // Ignore invalid JSON and continue walking upward.
+      }
+    }
+
+    const parentDirAbs = path.dirname(currentDirAbs);
+    if (parentDirAbs === currentDirAbs) {
+      break;
+    }
+    currentDirAbs = parentDirAbs;
+  }
+
+  throw new Error(`Unable to resolve repository root from ${startDirAbs}`);
+}
+
+export const repoRootAbs = resolveRepoRoot(__dirname);
 export const socialPlatformRootAbs = path.join(
   repoRootAbs,
   "test",

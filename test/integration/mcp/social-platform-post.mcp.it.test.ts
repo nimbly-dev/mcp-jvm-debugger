@@ -11,7 +11,7 @@ import {
   socialPlatformRootAbs,
   startMcpClient,
   startPostAppWithAgent,
-} from "../support/social-platform-post.fixture";
+} from "../support/spring/social-platform-post.fixture";
 
 let runtime: Awaited<ReturnType<typeof startPostAppWithAgent>> | undefined;
 let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;

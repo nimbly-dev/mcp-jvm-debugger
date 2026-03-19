@@ -43,7 +43,7 @@ test("probe_get_status returns invalid_line_target for unresolved runtime line",
   await withMockedFetch(async () => {
     calls += 1;
     return jsonResponse(200, {
-      key: "com.example.Catalog#updateAndStageSynonymRule:122",
+      key: "com.example.social.post.app.controller.PostController#updatePost:122",
       hitCount: 0,
       lastHitEpochMs: 0,
       mode: "observe",
@@ -52,7 +52,7 @@ test("probe_get_status returns invalid_line_target for unresolved runtime line",
     });
   }, async () => {
     const out = await probeStatus({
-      key: "com.example.Catalog#updateAndStageSynonymRule:122",
+      key: "com.example.social.post.app.controller.PostController#updatePost:122",
       baseUrl: "http://127.0.0.1:9191",
       statusPath: "/__probe/status",
     });
@@ -76,7 +76,7 @@ test("probe_get_status supports 0.1.0 nested envelope", async () => {
     return jsonResponse(200, {
       contractVersion: "0.1.0",
       probe: {
-        key: "com.example.Catalog#updateAndStageSynonymRule:122",
+        key: "com.example.social.post.app.controller.PostController#updatePost:122",
         hitCount: 1,
         lastHitEpochMs: 1234,
         lineResolvable: true,
@@ -111,7 +111,7 @@ test("probe_get_status supports 0.1.0 nested envelope", async () => {
     });
   }, async () => {
     const out = await probeStatus({
-      key: "com.example.Catalog#updateAndStageSynonymRule:122",
+      key: "com.example.social.post.app.controller.PostController#updatePost:122",
       baseUrl: "http://127.0.0.1:9191",
       statusPath: "/__probe/status",
     });
@@ -133,7 +133,7 @@ test("probe_get_status supports 0.1.0 nested envelope", async () => {
     assert.equal(out.structuredContent.response.json.runtime.appPort.confidence, undefined);
     assert.equal(
       out.structuredContent.request.key,
-      "com.example.Catalog#updateAndStageSynonymRule:122",
+      "com.example.social.post.app.controller.PostController#updatePost:122",
     );
     assert.equal(out.structuredContent.request.resolvedKey, undefined);
   });
@@ -143,13 +143,13 @@ test("probe_reset returns invalid_line_target semantics when runtime line is unr
   await withMockedFetch(async () => {
     return jsonResponse(200, {
       ok: true,
-      key: "com.example.Catalog#updateAndStageSynonymRule:122",
+      key: "com.example.social.post.app.controller.PostController#updatePost:122",
       lineResolvable: false,
       lineValidation: "invalid_line_target",
     });
   }, async () => {
     const out = await probeReset({
-      key: "com.example.Catalog#updateAndStageSynonymRule:122",
+      key: "com.example.social.post.app.controller.PostController#updatePost:122",
       baseUrl: "http://127.0.0.1:9191",
       resetPath: "/__probe/reset",
     });
@@ -161,7 +161,7 @@ test("probe_reset returns invalid_line_target semantics when runtime line is unr
     assert.equal(out.structuredContent.result.actionCode, "runtime_not_aligned");
     assert.equal(
       out.structuredContent.request.key,
-      "com.example.Catalog#updateAndStageSynonymRule:122",
+      "com.example.social.post.app.controller.PostController#updatePost:122",
     );
     assert.equal(out.structuredContent.request.resolvedKey, undefined);
   });
@@ -172,7 +172,7 @@ test("probe_wait_for_hit exits immediately for invalid_line_target", async () =>
   await withMockedFetch(async () => {
     calls += 1;
     return jsonResponse(200, {
-      key: "com.example.Catalog#updateAndStageSynonymRule:122",
+      key: "com.example.social.post.app.controller.PostController#updatePost:122",
       hitCount: 0,
       lastHitEpochMs: 0,
       mode: "observe",
@@ -181,7 +181,7 @@ test("probe_wait_for_hit exits immediately for invalid_line_target", async () =>
     });
   }, async () => {
     const out = await probeWaitHit({
-      key: "com.example.Catalog#updateAndStageSynonymRule:122",
+      key: "com.example.social.post.app.controller.PostController#updatePost:122",
       baseUrl: "http://127.0.0.1:9191",
       statusPath: "/__probe/status",
       timeoutMs: 250,
@@ -207,7 +207,7 @@ test("probe_wait_for_hit returns structured service_unreachable by default", asy
     throw new Error("fetch failed");
   }, async () => {
     const out = await probeWaitHit({
-      key: "com.example.Catalog#updateAndStageSynonymRule:122",
+      key: "com.example.social.post.app.controller.PostController#updatePost:122",
       baseUrl: "http://127.0.0.1:9191",
       statusPath: "/__probe/status",
       timeoutMs: 250,
@@ -232,7 +232,7 @@ test("probe_wait_for_hit retries unreachable status checks when enabled and can 
     calls += 1;
     if (calls === 1) throw new Error("fetch failed");
     return jsonResponse(200, {
-      key: "com.example.Catalog#updateAndStageSynonymRule:122",
+      key: "com.example.social.post.app.controller.PostController#updatePost:122",
       hitCount: 1,
       lastHitEpochMs: Date.now(),
       mode: "observe",
@@ -241,7 +241,7 @@ test("probe_wait_for_hit retries unreachable status checks when enabled and can 
     });
   }, async () => {
     const out = await probeWaitHit({
-      key: "com.example.Catalog#updateAndStageSynonymRule:122",
+      key: "com.example.social.post.app.controller.PostController#updatePost:122",
       baseUrl: "http://127.0.0.1:9191",
       statusPath: "/__probe/status",
       timeoutMs: 250,
@@ -263,7 +263,7 @@ test("probe_wait_for_hit returns structured service_unreachable after unreachabl
     throw new Error("fetch failed");
   }, async () => {
     const out = await probeWaitHit({
-      key: "com.example.Catalog#updateAndStageSynonymRule:122",
+      key: "com.example.social.post.app.controller.PostController#updatePost:122",
       baseUrl: "http://127.0.0.1:9191",
       statusPath: "/__probe/status",
       timeoutMs: 250,
@@ -289,7 +289,7 @@ test("probe_wait_for_hit timeout_no_inline_hit returns line-not-executed guidanc
   await withMockedFetch(async () => {
     calls += 1;
     return jsonResponse(200, {
-      key: "com.example.Catalog#updateAndStageSynonymRule:122",
+      key: "com.example.social.post.app.controller.PostController#updatePost:122",
       hitCount: 0,
       lastHitEpochMs: 0,
       mode: "observe",
@@ -298,7 +298,7 @@ test("probe_wait_for_hit timeout_no_inline_hit returns line-not-executed guidanc
     });
   }, async () => {
     const out = await probeWaitHit({
-      key: "com.example.Catalog#updateAndStageSynonymRule:122",
+      key: "com.example.social.post.app.controller.PostController#updatePost:122",
       baseUrl: "http://127.0.0.1:9191",
       statusPath: "/__probe/status",
       timeoutMs: 120,
@@ -316,7 +316,7 @@ test("probe_wait_for_hit timeout_no_inline_hit returns line-not-executed guidanc
 });
 
 test("probe_wait_for_hit emits minimal non-duplicative epoch fields", async () => {
-  const key = "com.example.Catalog#updateAndStageSynonymRule:122";
+  const key = "com.example.social.post.app.controller.PostController#updatePost:122";
   const originalNow = Date.now;
   let calls = 0;
   try {
@@ -361,14 +361,14 @@ test("probe_wait_for_hit emits minimal non-duplicative epoch fields", async () =
 test("probe_get_status remains backward-compatible when line validation fields are absent", async () => {
   await withMockedFetch(async () => {
     return jsonResponse(200, {
-      key: "com.example.Catalog#updateAndStageSynonymRule:122",
+      key: "com.example.social.post.app.controller.PostController#updatePost:122",
       hitCount: 0,
       lastHitEpochMs: 0,
       mode: "observe",
     });
   }, async () => {
     const out = await probeStatus({
-      key: "com.example.Catalog#updateAndStageSynonymRule:122",
+      key: "com.example.social.post.app.controller.PostController#updatePost:122",
       baseUrl: "http://127.0.0.1:9191",
       statusPath: "/__probe/status",
     });
@@ -382,8 +382,8 @@ test("probe_get_status remains backward-compatible when line validation fields a
 test("probe_get_status supports keys[] batch with partial success semantics", async () => {
   let calls = 0;
   let postedBody: any = null;
-  const lineKey = "com.example.Catalog#updateAndStageSynonymRule:122";
-  const nonLineKey = "com.example.Catalog#updateAndStageSynonymRule";
+  const lineKey = "com.example.social.post.app.controller.PostController#updatePost:122";
+  const nonLineKey = "com.example.social.post.app.controller.PostController#updatePost";
 
   await withMockedFetch(async (_input, init) => {
     calls += 1;
@@ -430,7 +430,7 @@ test("probe_get_status supports keys[] batch with partial success semantics", as
 });
 
 test("probe_get_status supports 0.1.0 batch rows with nested probe payload", async () => {
-  const lineKey = "com.example.Catalog#updateAndStageSynonymRule:122";
+  const lineKey = "com.example.social.post.app.controller.PostController#updatePost:122";
   await withMockedFetch(async () => {
     return jsonResponse(200, {
       contractVersion: "0.1.0",
@@ -502,7 +502,7 @@ test("probe_get_capture returns capture payload when available", async () => {
       contractVersion: "0.1.0",
       capture: {
         captureId: "abc123",
-        methodKey: "com.example.Catalog#updateAndStageSynonymRule",
+        methodKey: "com.example.social.post.app.controller.PostController#updatePost",
         capturedAtEpochMs: 1000,
         redactionMode: "basic",
         args: [{ index: 0, value: "{\"sku\":\"A1\"}", truncated: false, originalLength: 12, redacted: false }],
@@ -560,9 +560,9 @@ test("probe_get_capture returns not found state when capture is missing", async 
 test("probe_reset supports keys[] batch with partial success semantics", async () => {
   let calls = 0;
   let postedBody: any = null;
-  const validLineKey = "com.example.Catalog#updateAndStageSynonymRule:122";
-  const invalidLineKey = "com.example.Catalog#updateAndStageSynonymRule:123";
-  const nonLineKey = "com.example.Catalog#updateAndStageSynonymRule";
+  const validLineKey = "com.example.social.post.app.controller.PostController#updatePost:122";
+  const invalidLineKey = "com.example.social.post.app.controller.PostController#updatePost:123";
+  const nonLineKey = "com.example.social.post.app.controller.PostController#updatePost";
 
   await withMockedFetch(async (_input, init) => {
     calls += 1;
@@ -617,14 +617,14 @@ test("probe_reset supports className selector and class_not_found no-op response
     return jsonResponse(200, {
       ok: true,
       selector: "className",
-      className: "com.example.Catalog",
+      className: "com.example.social.post.app.controller.PostController",
       count: 0,
       reason: "class_not_found",
       results: [],
     });
   }, async () => {
     const out = await probeReset({
-      className: "com.example.Catalog",
+      className: "com.example.social.post.app.controller.PostController",
       baseUrl: "http://127.0.0.1:9191",
       resetPath: "/__probe/reset",
     });
@@ -643,8 +643,8 @@ test("probe_reset supports className selector and class_not_found no-op response
 test("probe_get_status rejects conflicting or missing selectors", async () => {
   await assert.rejects(
     probeStatus({
-      key: "com.example.Catalog#updateAndStageSynonymRule:122",
-      keys: ["com.example.Catalog#updateAndStageSynonymRule:123"],
+      key: "com.example.social.post.app.controller.PostController#updatePost:122",
+      keys: ["com.example.social.post.app.controller.PostController#updatePost:123"],
       baseUrl: "http://127.0.0.1:9191",
       statusPath: "/__probe/status",
     }),
@@ -661,7 +661,7 @@ test("probe_get_status rejects conflicting or missing selectors", async () => {
 
   await assert.rejects(
     probeStatus({
-      keys: ["com.example.Catalog#updateAndStageSynonymRule:123"],
+      keys: ["com.example.social.post.app.controller.PostController#updatePost:123"],
       lineHint: 123,
       baseUrl: "http://127.0.0.1:9191",
       statusPath: "/__probe/status",
@@ -673,8 +673,8 @@ test("probe_get_status rejects conflicting or missing selectors", async () => {
 test("probe_reset rejects conflicting or missing selectors", async () => {
   await assert.rejects(
     probeReset({
-      key: "com.example.Catalog#updateAndStageSynonymRule:122",
-      className: "com.example.Catalog",
+      key: "com.example.social.post.app.controller.PostController#updatePost:122",
+      className: "com.example.social.post.app.controller.PostController",
       baseUrl: "http://127.0.0.1:9191",
       resetPath: "/__probe/reset",
     }),
@@ -691,7 +691,7 @@ test("probe_reset rejects conflicting or missing selectors", async () => {
 
   await assert.rejects(
     probeReset({
-      className: "com.example.Catalog",
+      className: "com.example.social.post.app.controller.PostController",
       lineHint: 88,
       baseUrl: "http://127.0.0.1:9191",
       resetPath: "/__probe/reset",
@@ -699,4 +699,5 @@ test("probe_reset rejects conflicting or missing selectors", async () => {
     /does not allow lineHint with keys\[\] or className/i,
   );
 });
+
 

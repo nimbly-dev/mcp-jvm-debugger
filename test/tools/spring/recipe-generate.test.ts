@@ -16,8 +16,8 @@ test("fails closed when target is not inferred in regression_http_only mode", as
     {
       rootAbs: "C:\\repo\\service",
       workspaceRootAbs: "C:\\repo",
-      classHint: "SynonymRuleController",
-      methodHint: "addSynonymRuleStages",
+      classHint: "PostController",
+      methodHint: "updatePost",
       intentMode: "regression_http_only",
     },
     {
@@ -31,18 +31,18 @@ test("fails closed when target is not inferred in regression_http_only mode", as
           synthesizerUsed: "spring",
           framework: "spring",
           requestCandidate: {
-            method: "POST",
-            path: "/v1/synonyms-rule",
+            method: "PUT",
+            path: "/api/v1/posts/1",
             queryTemplate: "",
-            fullUrlHint: "/v1/synonyms-rule",
+            fullUrlHint: "/api/v1/posts/1",
             rationale: ["fallback"],
           },
           trigger: {
             kind: "http",
-            method: "POST",
-            path: "/v1/synonyms-rule",
+            method: "PUT",
+            path: "/api/v1/posts/1",
             queryTemplate: "",
-            fullUrlHint: "/v1/synonyms-rule",
+            fullUrlHint: "/api/v1/posts/1",
             headers: {},
           },
           requestSource: "spring_mvc",
@@ -70,8 +70,8 @@ test("keeps target_not_inferred for probe mode when strict line target is unavai
     {
       rootAbs: "C:\\repo\\service",
       workspaceRootAbs: "C:\\repo",
-      classHint: "SynonymRuleController",
-      methodHint: "addSynonymRuleStages",
+      classHint: "PostController",
+      methodHint: "updatePost",
       lineHint: 88,
       intentMode: "single_line_probe",
     },
@@ -86,18 +86,18 @@ test("keeps target_not_inferred for probe mode when strict line target is unavai
           synthesizerUsed: "spring",
           framework: "spring",
           requestCandidate: {
-            method: "POST",
-            path: "/v1/synonyms-rule",
+            method: "PUT",
+            path: "/api/v1/posts/1",
             queryTemplate: "",
-            fullUrlHint: "/v1/synonyms-rule",
+            fullUrlHint: "/api/v1/posts/1",
             rationale: ["fallback"],
           },
           trigger: {
             kind: "http",
-            method: "POST",
-            path: "/v1/synonyms-rule",
+            method: "PUT",
+            path: "/api/v1/posts/1",
             queryTemplate: "",
-            fullUrlHint: "/v1/synonyms-rule",
+            fullUrlHint: "/api/v1/posts/1",
             headers: {},
           },
           requestSource: "spring_mvc",
@@ -122,8 +122,8 @@ test("reports request_inference failure when target is inferred but request cand
     {
       rootAbs: "C:\\repo\\service",
       workspaceRootAbs: "C:\\repo",
-      classHint: "SynonymRuleController",
-      methodHint: "addSynonymRuleStages",
+      classHint: "PostController",
+      methodHint: "updatePost",
       intentMode: "regression_http_only",
     },
     {
@@ -131,11 +131,11 @@ test("reports request_inference failure when target is inferred but request cand
         scannedJavaFiles: 20,
         candidates: [
           {
-            file: "C:\\repo\\service\\src\\main\\java\\SynonymRuleController.java",
-            className: "SynonymRuleController",
-            methodName: "addSynonymRuleStages",
+            file: "C:\\repo\\service\\src\\main\\java\\PostController.java",
+            className: "PostController",
+            methodName: "updatePost",
             line: 42,
-            key: "com.example.SynonymRuleController#addSynonymRuleStages",
+            key: "com.example.social.post.app.controller.PostController#updatePost",
             reasons: ["method exact match"],
           },
         ],
@@ -167,8 +167,8 @@ test("reports auth_resolution when request exists but auth input is still requir
     {
       rootAbs: "C:\\repo\\service",
       workspaceRootAbs: "C:\\repo",
-      classHint: "SynonymRuleController",
-      methodHint: "addSynonymRuleStages",
+      classHint: "PostController",
+      methodHint: "updatePost",
       intentMode: "regression_http_only",
     },
     {
@@ -176,11 +176,11 @@ test("reports auth_resolution when request exists but auth input is still requir
         scannedJavaFiles: 20,
         candidates: [
           {
-            file: "C:\\repo\\service\\src\\main\\java\\SynonymRuleController.java",
-            className: "SynonymRuleController",
-            methodName: "addSynonymRuleStages",
+            file: "C:\\repo\\service\\src\\main\\java\\PostController.java",
+            className: "PostController",
+            methodName: "updatePost",
             line: 42,
-            key: "com.example.SynonymRuleController#addSynonymRuleStages",
+            key: "com.example.social.post.app.controller.PostController#updatePost",
             reasons: ["method exact match"],
           },
         ],
@@ -191,18 +191,18 @@ test("reports auth_resolution when request exists but auth input is still requir
           synthesizerUsed: "spring",
           framework: "spring",
           requestCandidate: {
-            method: "POST",
-            path: "/v1/synonyms-rule",
+            method: "PUT",
+            path: "/api/v1/posts/1",
             queryTemplate: "",
-            fullUrlHint: "/v1/synonyms-rule",
+            fullUrlHint: "/api/v1/posts/1",
             rationale: ["controller mapping"],
           },
           trigger: {
             kind: "http",
-            method: "POST",
-            path: "/v1/synonyms-rule",
+            method: "PUT",
+            path: "/api/v1/posts/1",
             queryTemplate: "",
-            fullUrlHint: "/v1/synonyms-rule",
+            fullUrlHint: "/api/v1/posts/1",
             headers: {},
           },
           requestSource: "spring_mvc",
@@ -522,3 +522,5 @@ test("emits non-blocking context path hint when apiBasePath is not provided", as
     true,
   );
 });
+
+

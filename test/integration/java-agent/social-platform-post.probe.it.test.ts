@@ -8,7 +8,7 @@ import {
   postControllerFqcn,
   postControllerSourceFileAbs,
   startPostAppWithAgent,
-} from "../support/social-platform-post.fixture";
+} from "../support/spring/social-platform-post.fixture";
 
 let runtime: Awaited<ReturnType<typeof startPostAppWithAgent>> | undefined;
 
