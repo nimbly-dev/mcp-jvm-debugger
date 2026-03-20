@@ -1,5 +1,7 @@
 # How It Works
 
+![MCP JVM DEV TOOLS Workflow Diagram (0.1.0v)](./MCP-JVM-dev-tools-diagram.png)
+
 This document walks you through how `mcp-java-dev-tools` operates in practice — what it needs to run, how the orchestration flow works, and what each use case looks like end-to-end.
 
 ---
