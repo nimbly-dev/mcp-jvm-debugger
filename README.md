@@ -54,6 +54,7 @@ The installer currently supports Codex and Kiro.
 This installs the default skill set:
 - `mcp-java-dev-tools-line-probe-run`
 - `mcp-java-dev-tools-regression-suite`
+- `mcp-java-dev-tools-issue-report`
 
 For non-interactive or CI use, use the `./scripts/install-integrations.sh` flags shown above.
 
@@ -185,6 +186,7 @@ These paths are fixed and cannot be overridden.
 |---|---|
 | `mcp-java-dev-tools-line-probe-run` | Line-level probe execution |
 | `mcp-java-dev-tools-regression-suite` | Regression check orchestration |
+| `mcp-java-dev-tools-issue-report` | Sanitized issue reporting from session, runtime, and probe evidence |
 
 ---
 
