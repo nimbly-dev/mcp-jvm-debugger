@@ -1,7 +1,7 @@
 ---
 name: Bug Reporting using SKILL
 about: Create a automated bug report with user's live context using issue report SKILL
-title: 'MCPJVM- :'
+title: ''
 labels: bug
 assignees: ''
 
