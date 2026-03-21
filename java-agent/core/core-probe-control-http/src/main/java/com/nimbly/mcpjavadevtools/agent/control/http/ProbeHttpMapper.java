@@ -69,7 +69,7 @@ final class ProbeHttpMapper {
     return new ProbeHttpPayloads.ProbePayload(
         status.key(),
         status.hitCount(),
-        status.lastHitEpochMs(),
+        status.lastHitEpoch(),
         status.lineResolvable(),
         status.lineValidation()
     );
@@ -97,7 +97,7 @@ final class ProbeHttpMapper {
         preview.redactionMode,
         preview.captureId,
         preview.methodKey,
-        preview.capturedAtEpochMs,
+        preview.capturedAtEpoch,
         buildCapturePreviewArgs(preview.argsPreview),
         buildCapturePreviewValue(preview.returnPreview),
         buildCapturePreviewValue(preview.thrownPreview),
@@ -138,7 +138,7 @@ final class ProbeHttpMapper {
         actuation.actuatorId(),
         actuation.targetKey(),
         actuation.returnBoolean(),
-        runtime.serverEpochMs(),
+        runtime.serverEpoch(),
         buildRuntimeStringSignal(runtime.applicationType()),
         buildRuntimePortSignal(runtime.appPort())
     );
@@ -162,7 +162,7 @@ final class ProbeHttpMapper {
     return new ProbeHttpPayloads.CaptureRecordPayload(
         capture.captureId,
         capture.methodKey,
-        capture.capturedAtEpochMs,
+        capture.capturedAtEpoch,
         capture.redactionMode,
         buildCaptureArgs(capture.args),
         buildCaptureValue(capture.returnValue),

@@ -23,16 +23,16 @@ export function compactExecutionPaths(paths: unknown): string[] | undefined {
 }
 
 export function compactCapturePreview(preview: Record<string, unknown>): Record<string, unknown> {
-  const capturedAtEpochMs =
-    typeof preview.capturedAtEpochMs === "number"
-      ? preview.capturedAtEpochMs
+  const capturedAtEpoch =
+    typeof preview.capturedAtEpoch === "number"
+      ? preview.capturedAtEpoch
       : typeof preview.capturedAtMs === "number"
         ? preview.capturedAtMs
         : undefined;
   const out: Record<string, unknown> = {};
   if (typeof preview.available === "boolean") out.available = preview.available;
   if (typeof preview.captureId === "string") out.captureId = preview.captureId;
-  if (typeof capturedAtEpochMs === "number") out.capturedAtEpochMs = capturedAtEpochMs;
+  if (typeof capturedAtEpoch === "number") out.capturedAtEpoch = capturedAtEpoch;
   if (typeof preview.methodKey === "string") out.methodKey = preview.methodKey;
   if (typeof preview.redactionMode === "string") out.redactionMode = preview.redactionMode;
   if (typeof preview.truncatedAny === "boolean") out.truncatedAny = preview.truncatedAny;
@@ -65,13 +65,13 @@ export function compactStatusPayload(raw: Record<string, unknown> | null): Recor
   const out: Record<string, unknown> = {};
   if (typeof raw.key === "string") out.key = raw.key;
   if (typeof raw.hitCount === "number") out.hitCount = raw.hitCount;
-  const lastHitEpochMs =
-    typeof raw.lastHitEpochMs === "number"
-      ? raw.lastHitEpochMs
+  const lastHitEpoch =
+    typeof raw.lastHitEpoch === "number"
+      ? raw.lastHitEpoch
       : typeof raw.lastHitMs === "number"
         ? raw.lastHitMs
         : undefined;
-  if (typeof lastHitEpochMs === "number") out.lastHitEpochMs = lastHitEpochMs;
+  if (typeof lastHitEpoch === "number") out.lastHitEpoch = lastHitEpoch;
   if (typeof raw.lineResolvable === "boolean") out.lineResolvable = raw.lineResolvable;
   if (typeof raw.lineValidation === "string") out.lineValidation = raw.lineValidation;
   if (typeof raw.contractVersion === "string") out.contractVersion = raw.contractVersion;
@@ -90,7 +90,7 @@ export function compactCaptureRecord(capture: ProbeCaptureRecordPayload): Record
   const out: Record<string, unknown> = {};
   if (typeof capture.captureId === "string") out.captureId = capture.captureId;
   if (typeof capture.methodKey === "string") out.methodKey = capture.methodKey;
-  if (typeof capture.capturedAtEpochMs === "number") out.capturedAtEpochMs = capture.capturedAtEpochMs;
+  if (typeof capture.capturedAtEpoch === "number") out.capturedAtEpoch = capture.capturedAtEpoch;
   if (typeof capture.redactionMode === "string") out.redactionMode = capture.redactionMode;
   if (typeof capture.truncatedAny === "boolean") out.truncatedAny = capture.truncatedAny;
   const args = Array.isArray((capture as Record<string, unknown>).args)

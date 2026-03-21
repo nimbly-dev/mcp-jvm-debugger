@@ -86,7 +86,7 @@ public final class ProbeHttpPayloads {
   public record ProbePayload(
       String key,
       long hitCount,
-      long lastHitEpochMs,
+      long lastHitEpoch,
       Boolean lineResolvable,
       String lineValidation
   ) {}
@@ -97,7 +97,7 @@ public final class ProbeHttpPayloads {
       String redactionMode,
       String captureId,
       String methodKey,
-      Long capturedAtEpochMs,
+      Long capturedAtEpoch,
       List<CapturePreviewArgPayload> argsPreview,
       CapturePreviewValuePayload returnPreview,
       CapturePreviewValuePayload thrownPreview,
@@ -123,7 +123,7 @@ public final class ProbeHttpPayloads {
       String actuatorId,
       String actuateTargetKey,
       boolean actuateReturnBoolean,
-      long serverEpochMs,
+      long serverEpoch,
       RuntimeStringSignalPayload applicationType,
       RuntimePortSignalPayload appPort
   ) {}
@@ -143,7 +143,7 @@ public final class ProbeHttpPayloads {
   public record CaptureRecordPayload(
       String captureId,
       String methodKey,
-      long capturedAtEpochMs,
+      long capturedAtEpoch,
       String redactionMode,
       List<CaptureArgPayload> args,
       CaptureValuePayload returnValue,
