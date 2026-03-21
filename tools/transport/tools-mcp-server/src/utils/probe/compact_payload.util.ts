@@ -63,12 +63,7 @@ export function compactStatusPayload(raw: Record<string, unknown> | null): Recor
   const out: Record<string, unknown> = {};
   if (typeof raw.key === "string") out.key = raw.key;
   if (typeof raw.hitCount === "number") out.hitCount = raw.hitCount;
-  const lastHitEpoch =
-    typeof raw.lastHitEpoch === "number"
-      ? raw.lastHitEpoch
-      : typeof raw.lastHitMs === "number"
-        ? raw.lastHitMs
-        : undefined;
+  const lastHitEpoch = typeof raw.lastHitEpoch === "number" ? raw.lastHitEpoch : undefined;
   if (typeof lastHitEpoch === "number") out.lastHitEpoch = lastHitEpoch;
   if (typeof raw.lineResolvable === "boolean") out.lineResolvable = raw.lineResolvable;
   if (typeof raw.lineValidation === "string") out.lineValidation = raw.lineValidation;
