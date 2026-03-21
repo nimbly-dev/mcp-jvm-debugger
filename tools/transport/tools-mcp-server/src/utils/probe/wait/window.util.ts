@@ -23,16 +23,16 @@ export function resolveProbeWaitWindow(resolvedKey: string): ProbeWaitWindow {
 
 export function hasBaselineInlineHit(args: {
   baselineHitCount: number;
-  baselineLastHitMs: number;
+  baselineLastHitEpoch: number;
   triggerWindowStartMs: number;
 }): boolean {
   return (
     args.baselineHitCount > 0 &&
-    args.baselineLastHitMs > 0 &&
-    args.baselineLastHitMs >= args.triggerWindowStartMs
+    args.baselineLastHitEpoch > 0 &&
+    args.baselineLastHitEpoch >= args.triggerWindowStartMs
   );
 }
 
-export function isInlineByTime(lastHitMs: number | null, triggerWindowStartMs: number): boolean {
-  return lastHitMs !== null && lastHitMs >= triggerWindowStartMs;
+export function isInlineByTime(lastHitEpoch: number | null, triggerWindowStartMs: number): boolean {
+  return lastHitEpoch !== null && lastHitEpoch >= triggerWindowStartMs;
 }

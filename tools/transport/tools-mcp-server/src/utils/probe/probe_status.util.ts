@@ -101,7 +101,7 @@ async function probeStatusSingle(args: {
   const probeHit = lineValidation.invalidLineTarget
     ? invalidLineTargetProbeHitMessage(hitCount)
     : json !== null
-    ? `hitCount=${typeof json.hitCount === "number" ? json.hitCount : 0}, lastHitEpoch=${typeof json.lastHitEpoch === "number" ? json.lastHitEpoch : typeof json.lastHitMs === "number" ? json.lastHitMs : 0}`
+    ? `hitCount=${typeof json.hitCount === "number" ? json.hitCount : 0}, lastHitEpoch=${typeof json.lastHitEpoch === "number" ? json.lastHitEpoch : 0}`
       : "No JSON probe payload";
   const guidance = lineValidation.invalidLineTarget ? GUIDANCE_RUNTIME_NOT_ALIGNED : undefined;
   if (guidance) {
@@ -198,12 +198,7 @@ async function probeStatusBatch(args: {
       continue;
     }
     const hitCount = typeof row.hitCount === "number" ? row.hitCount : 0;
-    const lastHitEpoch =
-      typeof row.lastHitEpoch === "number"
-        ? row.lastHitEpoch
-        : typeof row.lastHitMs === "number"
-          ? row.lastHitMs
-          : undefined;
+    const lastHitEpoch = typeof row.lastHitEpoch === "number" ? row.lastHitEpoch : undefined;
     const lineValidation = readLineValidation(row);
     const guidance = lineValidation.invalidLineTarget ? GUIDANCE_RUNTIME_NOT_ALIGNED : undefined;
     localByKey.set(key, {
@@ -228,7 +223,7 @@ async function probeStatusBatch(args: {
       reproStatus: lineValidation.invalidLineTarget ? "invalid_line_target" : "status_checked",
       probeHit: lineValidation.invalidLineTarget
         ? invalidLineTargetProbeHitMessage(hitCount)
-          : `hitCount=${hitCount}, lastHitEpoch=${typeof row.lastHitEpoch === "number" ? row.lastHitEpoch : typeof row.lastHitMs === "number" ? row.lastHitMs : 0}`,
+          : `hitCount=${hitCount}, lastHitEpoch=${typeof row.lastHitEpoch === "number" ? row.lastHitEpoch : 0}`,
       ...(guidance ? { actionCode: guidance.actionCode, nextAction: guidance.nextAction } : {}),
       httpCode: remoteResponse?.status ?? 200,
       runtimeMode: typeof row.mode === "string" ? row.mode : undefined,

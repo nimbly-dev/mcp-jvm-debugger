@@ -31,10 +31,6 @@ export function normalizeStatusJson(
       ? (raw.runtime as Record<string, unknown>)
       : null;
   const out: Record<string, unknown> = { ...probe };
-  if (typeof out.lastHitMs === "number" && typeof out.lastHitEpoch !== "number") {
-    out.lastHitEpoch = out.lastHitMs;
-    delete out.lastHitMs;
-  }
   if (typeof raw.contractVersion === "string") out.contractVersion = raw.contractVersion;
   if (typeof raw.capturePreview === "object" && raw.capturePreview !== null) {
     out.capturePreview = compactCapturePreview(raw.capturePreview as Record<string, unknown>);
@@ -54,10 +50,6 @@ export function normalizeStatusBatchRow(raw: Record<string, unknown>): Record<st
   const out: Record<string, unknown> = {
     ...(raw.probe as Record<string, unknown>),
   };
-  if (typeof out.lastHitMs === "number" && typeof out.lastHitEpoch !== "number") {
-    out.lastHitEpoch = out.lastHitMs;
-    delete out.lastHitMs;
-  }
   if (typeof raw.ok === "boolean") out.ok = raw.ok;
   if (typeof raw.capturePreview === "object" && raw.capturePreview !== null) {
     out.capturePreview = compactCapturePreview(raw.capturePreview as Record<string, unknown>);

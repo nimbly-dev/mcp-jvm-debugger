@@ -151,7 +151,7 @@ export async function probeWaitHit(args: {
     const baselineLineValidation = readLineValidation(baselineJson);
     const baseline = parseProbeSnapshot(baselineRes.structuredContent);
     const baselineHitCount = baseline.hitCount ?? 0;
-    const baselineLastHitEpoch = baseline.lastHitMs ?? 0;
+    const baselineLastHitEpoch = baseline.lastHitEpoch ?? 0;
 
     if (baselineLineValidation.invalidLineTarget) {
       return buildInvalidLineTargetResponse({
@@ -167,7 +167,7 @@ export async function probeWaitHit(args: {
     if (
       hasBaselineInlineHit({
         baselineHitCount,
-        baselineLastHitMs: baselineLastHitEpoch,
+        baselineLastHitEpoch,
         triggerWindowStartMs: window.triggerWindowStartMs,
       })
     ) {
@@ -217,12 +217,7 @@ export async function probeWaitHit(args: {
       }
 
       const hitCount = typeof json?.hitCount === "number" ? json.hitCount : null;
-      const lastHitEpoch =
-        typeof json?.lastHitMs === "number"
-          ? json.lastHitMs
-          : typeof json?.lastHitEpoch === "number"
-            ? json.lastHitEpoch
-            : null;
+      const lastHitEpoch = typeof json?.lastHitEpoch === "number" ? json.lastHitEpoch : null;
       if (hitCount !== null) {
         const hitDelta = hitCount - baselineHitCount;
         const inlineByCount = hitDelta > 0;
