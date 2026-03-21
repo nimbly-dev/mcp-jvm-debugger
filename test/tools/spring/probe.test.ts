@@ -124,7 +124,6 @@ test("probe_get_status supports 0.1.0 nested envelope", async () => {
     assert.equal(out.structuredContent.response.json.contractVersion, "0.1.0");
     assert.equal(out.structuredContent.response.json.capturePreview.captureId, "abc123");
     assert.equal(out.structuredContent.response.json.capturePreview.capturedAtEpoch, 5555);
-    assert.equal(out.structuredContent.response.json.capturePreview.capturedAtMs, undefined);
     assert.equal(out.structuredContent.response.json.capturePreview.executionPaths, undefined);
     assert.equal(out.structuredContent.response.json.runtime.applicationType, undefined);
     assert.equal(out.structuredContent.response.json.runtime.serverEpoch, undefined);

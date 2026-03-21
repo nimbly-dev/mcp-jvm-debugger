@@ -26,9 +26,7 @@ export function compactCapturePreview(preview: Record<string, unknown>): Record<
   const capturedAtEpoch =
     typeof preview.capturedAtEpoch === "number"
       ? preview.capturedAtEpoch
-      : typeof preview.capturedAtMs === "number"
-        ? preview.capturedAtMs
-        : undefined;
+      : undefined;
   const out: Record<string, unknown> = {};
   if (typeof preview.available === "boolean") out.available = preview.available;
   if (typeof preview.captureId === "string") out.captureId = preview.captureId;
@@ -88,17 +86,22 @@ export function compactStatusPayload(raw: Record<string, unknown> | null): Recor
 
 export function compactCaptureRecord(capture: ProbeCaptureRecordPayload): Record<string, unknown> {
   const out: Record<string, unknown> = {};
+  const rawCapture = capture as Record<string, unknown>;
+  const capturedAtEpoch =
+    typeof rawCapture.capturedAtEpoch === "number"
+      ? rawCapture.capturedAtEpoch
+      : undefined;
   if (typeof capture.captureId === "string") out.captureId = capture.captureId;
   if (typeof capture.methodKey === "string") out.methodKey = capture.methodKey;
-  if (typeof capture.capturedAtEpoch === "number") out.capturedAtEpoch = capture.capturedAtEpoch;
+  if (typeof capturedAtEpoch === "number") out.capturedAtEpoch = capturedAtEpoch;
   if (typeof capture.redactionMode === "string") out.redactionMode = capture.redactionMode;
   if (typeof capture.truncatedAny === "boolean") out.truncatedAny = capture.truncatedAny;
-  const args = Array.isArray((capture as Record<string, unknown>).args)
-    ? ((capture as Record<string, unknown>).args as unknown[])
+  const args = Array.isArray(rawCapture.args)
+    ? (rawCapture.args as unknown[])
     : [];
   out.argsCount = args.length;
-  out.hasReturnValue = (capture as Record<string, unknown>).returnValue != null;
-  out.hasThrownValue = (capture as Record<string, unknown>).thrownValue != null;
+  out.hasReturnValue = rawCapture.returnValue != null;
+  out.hasThrownValue = rawCapture.thrownValue != null;
   const executionPaths = compactExecutionPaths(capture.executionPaths);
   if (executionPaths) out.executionPaths = executionPaths;
   return out;
