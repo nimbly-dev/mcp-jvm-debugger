@@ -382,15 +382,19 @@ remove_retired_skill_if_present() {
 
 detect_kiro_config_path() {
   local candidates=()
+  candidates+=("$HOME/.kiro/settings/mcp.json")
   candidates+=("$HOME/.kiro/mcp.json")
   if [[ "$OSTYPE" == "darwin"* ]]; then
+    candidates+=("$HOME/.kiro/settings/mcp.json")
     candidates+=("$HOME/Library/Application Support/Kiro/User/mcp.json")
     candidates+=("$HOME/Library/Application Support/Kiro/User/settings.json")
   elif [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "cygwin"* ]]; then
+    candidates+=("$HOME/.kiro/settings/mcp.json")
     local appdata="${APPDATA:-$HOME/AppData/Roaming}"
     candidates+=("$appdata/Kiro/User/mcp.json")
     candidates+=("$appdata/Kiro/User/settings.json")
   else
+    candidates+=("$HOME/.kiro/settings/mcp.json")
     candidates+=("$HOME/.config/Kiro/User/mcp.json")
     candidates+=("$HOME/.config/Kiro/User/settings.json")
   fi
