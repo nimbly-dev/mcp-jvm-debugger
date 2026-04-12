@@ -10,6 +10,16 @@ module.exports = [
       parserOptions: {
         ecmaVersion: 2022,
         sourceType: "module",
+        projectService: {
+          allowDefaultProject: [
+            "test/*.ts",
+            "test/*/*.ts",
+            "test/*/*/*.ts",
+            "test/*/*/*/*.ts",
+          ],
+          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 200,
+        },
+        tsconfigRootDir: __dirname,
       },
     },
     plugins: {
@@ -26,6 +36,9 @@ module.exports = [
         { prefer: "type-imports" },
       ],
       "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-unnecessary-condition": "warn",
+      "no-nested-ternary": "warn",
+      "max-statements-per-line": ["warn", { max: 1 }],
     },
   },
   {

@@ -1,7 +1,7 @@
 import * as fsSync from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import * as net from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -194,7 +194,7 @@ async function allocateFreePort(): Promise<number> {
   });
 }
 
-async function forceStop(child: import("node:child_process").ChildProcess): Promise<void> {
+async function forceStop(child: ChildProcess): Promise<void> {
   if (!child.pid || child.exitCode !== null) return;
 
   if (process.platform === "win32") {

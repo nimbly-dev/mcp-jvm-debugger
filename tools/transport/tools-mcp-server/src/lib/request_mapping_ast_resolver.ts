@@ -20,14 +20,12 @@ type ResolverLaunch = {
   evidence: string[];
 };
 
-async function dirExists(dirAbs: string): Promise<boolean> {
-  try {
-    const stat = await fs.stat(dirAbs);
-    return stat.isDirectory();
-  } catch {
-    return false;
-  }
-}
+type VersionedJarCandidate = {
+  repoRoot: string;
+  jarAbs: string;
+  version: string;
+  variant: "all" | "plain";
+};
 
 async function fileExists(fileAbs: string): Promise<boolean> {
   try {
@@ -70,6 +68,83 @@ async function findRepoRoots(): Promise<string[]> {
   return out;
 }
 
+function compareVersionStringsDesc(left: string, right: string): number {
+  const toTokens = (value: string): Array<number | string> => {
+    const parts = value.match(/[0-9]+|[A-Za-z]+/g) ?? [];
+    return parts.map((part) => {
+      if (/^[0-9]+$/.test(part)) return Number.parseInt(part, 10);
+      return part.toLowerCase();
+    });
+  };
+
+  const leftTokens = toTokens(left);
+  const rightTokens = toTokens(right);
+  const length = Math.max(leftTokens.length, rightTokens.length);
+  for (let i = 0; i < length; i += 1) {
+    const leftToken = leftTokens[i];
+    const rightToken = rightTokens[i];
+    if (leftToken === undefined) return 1;
+    if (rightToken === undefined) return -1;
+    if (typeof leftToken === "number" && typeof rightToken === "number") {
+      if (leftToken !== rightToken) return rightToken - leftToken;
+      continue;
+    }
+    const leftText = String(leftToken);
+    const rightText = String(rightToken);
+    if (leftText !== rightText) return rightText.localeCompare(leftText);
+  }
+  return 0;
+}
+
+function compareCandidates(left: VersionedJarCandidate, right: VersionedJarCandidate): number {
+  const versionCmp = compareVersionStringsDesc(left.version, right.version);
+  if (versionCmp !== 0) return versionCmp;
+  if (left.variant !== right.variant) return left.variant === "all" ? -1 : 1;
+  return left.jarAbs.localeCompare(right.jarAbs);
+}
+
+async function collectVersionedJarCandidates(
+  repoRoot: string,
+  targetDirParts: string[],
+  prefixes: string[],
+): Promise<VersionedJarCandidate[]> {
+  const targetDirAbs = path.join(repoRoot, ...targetDirParts);
+  let entries: string[];
+  try {
+    entries = await fs.readdir(targetDirAbs);
+  } catch {
+    return [];
+  }
+
+  const out: VersionedJarCandidate[] = [];
+  for (const filename of entries) {
+    for (const prefix of prefixes) {
+      const allMatch = filename.match(new RegExp(`^${prefix}-(.+)-all\\.jar$`));
+      if (allMatch) {
+        out.push({
+          repoRoot,
+          jarAbs: path.join(targetDirAbs, filename),
+          version: allMatch[1] ?? "",
+          variant: "all",
+        });
+        continue;
+      }
+      const plainMatch = filename.match(new RegExp(`^${prefix}-(.+)\\.jar$`));
+      if (plainMatch && !filename.endsWith("-all.jar") && !filename.endsWith("-shaded.jar")) {
+        out.push({
+          repoRoot,
+          jarAbs: path.join(targetDirAbs, filename),
+          version: plainMatch[1] ?? "",
+          variant: "plain",
+        });
+      }
+    }
+  }
+
+  out.sort(compareCandidates);
+  return out;
+}
+
 async function resolveLaunch(): Promise<ResolverLaunch | undefined> {
   const configuredClasspath = process.env[AST_RESOLVER_CLASSPATH_ENV]?.trim();
   if (configuredClasspath) {
@@ -98,8 +173,39 @@ async function resolveLaunch(): Promise<ResolverLaunch | undefined> {
   const mapperCoreCandidates: Array<{ repoRoot: string; jarAbs: string }> = [];
   const springPluginCandidates: Array<{ repoRoot: string; jarAbs: string }> = [];
   const legacyCandidates: Array<{ repoRoot: string; jarAbs: string }> = [];
+  const scannedCoreMapperCandidates: VersionedJarCandidate[] = [];
+  const scannedSpringPluginCandidates: VersionedJarCandidate[] = [];
+  const scannedLegacyCandidates: VersionedJarCandidate[] = [];
 
   for (const repoRoot of repoRoots) {
+    scannedCoreMapperCandidates.push(
+      ...(await collectVersionedJarCandidates(
+        repoRoot,
+        ["java-agent", "core", "core-entrypoint-mapper", "target"],
+        [
+          "mcp-java-dev-tools-core-entrypoint-mapper",
+          "mcp-java-dev-tools-core-request-mapper",
+        ],
+      )),
+    );
+    scannedSpringPluginCandidates.push(
+      ...(await collectVersionedJarCandidates(
+        repoRoot,
+        ["java-agent", "mappers-adapters", "adapter-request-mapper-spring-http", "target"],
+        [
+          "mcp-java-dev-tools-adapter-request-mapper-spring-http",
+          "mcp-java-dev-tools-adapter-request-mapper-spring",
+        ],
+      )),
+    );
+    scannedLegacyCandidates.push(
+      ...(await collectVersionedJarCandidates(
+        repoRoot,
+        ["java-agent", "request-mapping-resolver", "target"],
+        ["mcp-java-dev-tools-request-mapping-resolver"],
+      )),
+    );
+
     for (const version of versionCandidates) {
       mapperCoreCandidates.push(
         {
@@ -197,7 +303,15 @@ async function resolveLaunch(): Promise<ResolverLaunch | undefined> {
   }
 
   let selectedCoreMapperJar: { repoRoot: string; jarAbs: string } | undefined;
+  const sortedScannedCoreMapperCandidates = scannedCoreMapperCandidates.sort(compareCandidates);
+  for (const candidate of sortedScannedCoreMapperCandidates) {
+    if (await fileExists(candidate.jarAbs)) {
+      selectedCoreMapperJar = { repoRoot: candidate.repoRoot, jarAbs: candidate.jarAbs };
+      break;
+    }
+  }
   for (const candidate of mapperCoreCandidates) {
+    if (selectedCoreMapperJar) break;
     if (await fileExists(candidate.jarAbs)) {
       selectedCoreMapperJar = candidate;
       break;
@@ -206,7 +320,19 @@ async function resolveLaunch(): Promise<ResolverLaunch | undefined> {
   if (selectedCoreMapperJar) {
     const classpathEntries = [selectedCoreMapperJar.jarAbs];
     let springPluginJar: string | undefined;
+    const sortedScannedSpringPluginCandidates = scannedSpringPluginCandidates.sort(compareCandidates);
+    for (const pluginCandidate of sortedScannedSpringPluginCandidates) {
+      if (pluginCandidate.repoRoot !== selectedCoreMapperJar.repoRoot) {
+        continue;
+      }
+      if (await fileExists(pluginCandidate.jarAbs)) {
+        springPluginJar = pluginCandidate.jarAbs;
+        classpathEntries.push(pluginCandidate.jarAbs);
+        break;
+      }
+    }
     for (const pluginCandidate of springPluginCandidates) {
+      if (springPluginJar) break;
       if (pluginCandidate.repoRoot !== selectedCoreMapperJar.repoRoot) {
         continue;
       }
@@ -226,6 +352,15 @@ async function resolveLaunch(): Promise<ResolverLaunch | undefined> {
     };
   }
 
+  const sortedScannedLegacyCandidates = scannedLegacyCandidates.sort(compareCandidates);
+  for (const candidate of sortedScannedLegacyCandidates) {
+    if (await fileExists(candidate.jarAbs)) {
+      return {
+        args: ["-jar", candidate.jarAbs],
+        evidence: [`repoRoot=${candidate.repoRoot}`, `legacyJarPath=${candidate.jarAbs}`],
+      };
+    }
+  }
   for (const candidate of legacyCandidates) {
     if (await fileExists(candidate.jarAbs)) {
       return {

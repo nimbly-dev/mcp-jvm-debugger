@@ -16,6 +16,8 @@
     "test:it:mcp": "npm run build:compile && mvn -f java-agent\\pom.xml -pl core/core-probe -am package -DskipTests && mvn -f test\\fixtures\\spring-apps\\social-platform\\pom.xml -pl post-service/post-app -am package -DskipTests && node --test --test-concurrency=1 -r ts-node/register -r tsconfig-paths/register test/integration/mcp/**/*.it.test.ts",
     "lint": "eslint \"server.ts\" \"tools/**/*.ts\" \"test/**/*.ts\"",
     "lint:fix": "eslint \"server.ts\" \"tools/**/*.ts\" \"test/**/*.ts\" --fix",
+    "lint:perf:record": "node scripts/lint-perf-record.cjs",
+    "lint:perf:check": "node scripts/lint-perf-check.cjs",
     "format": "prettier --write \"server.ts\" \"tools/**/*.ts\" \"test/**/*.ts\" \"docs/**/*.md\" \"README.md\"",
     "format:check": "prettier --check \"server.ts\" \"tools/**/*.ts\" \"test/**/*.ts\" \"docs/**/*.md\" \"README.md\"",
     "deadcode:check": "ts-prune -p tsconfig.json",

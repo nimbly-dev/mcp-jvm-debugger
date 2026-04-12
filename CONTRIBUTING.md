@@ -134,6 +134,26 @@ npm.cmd run build:java
 
 When iterating on a single adapter or Java module, narrower module-level builds are fine. Full-stack validation is still expected before merge when behavior crosses module boundaries.
 
+## TypeScript and STDIO Enforcement Baseline
+
+The repository enforces a TypeScript and MCP stdio baseline through lint/test checks.
+
+- Type-aware linting is enabled and expected to pass.
+- Readability hardening rules start as warnings and are promoted to errors after 14 calendar days or 2 merged PR cycles (whichever is earlier).
+- MCP stdio behavior is validated by integration coverage to ensure protocol messages stay on `stdout` and diagnostics stay on `stderr`.
+
+Policy owner for baseline thresholds and rollout timing: repository maintainers.
+
+## Java Enforcement Baseline
+
+The repository enforces a Java readability and modular SoC baseline through Maven `verify`.
+
+- Maven Enforcer validates build/runtime baselines and module dependency boundaries.
+- Checkstyle enforces Java readability constraints (no nested ternary, no multiple statements per line, method/parameter limits).
+- PMD enforces complexity constraints (including cyclomatic complexity).
+
+Policy owner for baseline thresholds and boundary exceptions: repository maintainers.
+
 ## Pull Request Expectations
 
 Every pull request should cover four things:

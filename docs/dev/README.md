@@ -69,6 +69,29 @@ A few principles that hold across all extension work:
 
 ---
 
+## Java Checkstyles
+
+The Java agent uses a lightweight readability baseline:
+
+- `LineLength` is allowed up to `160` characters and is treated as a warning.
+- Nested ternary expressions are disallowed.
+- `MethodLength` is allowed up to `120` lines and is treated as a warning.
+- `ParameterNumber` is allowed up to `12` parameters and is treated as a warning.
+- `UnusedImports` and `AvoidStarImport` remain enforced.
+
+A small suppressions file exists for targeted hot spots only:
+
+- `CaptureValueSerializer.java`
+- `CapturePreviewView.java`
+- `ExecutionPathCollector.java`
+- `LineHitVisitor.java`
+- `RequestMappingResolver.java`
+- `AgentConfig.java`
+
+The goal is to keep the baseline strict enough to prevent noise, but flexible enough to avoid blocking normal development on bootstrap and runtime plumbing.
+
+---
+
 ## Typical Dev Flow
 
 1. Copy the example module or package closest to your target framework
