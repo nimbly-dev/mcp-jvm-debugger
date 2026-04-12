@@ -65,6 +65,24 @@ async function executeUpdatePostAs(args: { token: string; runAsUser: string; con
   });
 }
 
+async function executeCreatePostAs(args: { token: string; runAsUser: string; content: string }) {
+  if (!runtime) throw new Error("post-app runtime was not started");
+  return await fetch(`${runtime.apiBaseUrl}/api/v1/posts`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${args.token}`,
+      "x-run-as-tenant": "fixture-tenant",
+      "x-run-as-user": args.runAsUser,
+    },
+    body: JSON.stringify({
+      content: args.content,
+      visibility: "PUBLIC",
+      tags: ["fixture", "mcp", "auth"],
+    }),
+  });
+}
+
 const postServiceFqcn = "com.example.social.post.app.service.PostService";
 const postServiceSourceAbs = path.join(
   postAppProjectRootAbs,
@@ -264,6 +282,47 @@ test("mcp IT: happy-path covers regression, probe status, capture, class invento
   assert.equal(resetClass.structuredContent.mode, "probe_batch");
   assert.equal(resetClass.structuredContent.operation, "reset");
   assert.equal(resetClass.structuredContent.summary.total >= 1, true);
+});
+
+test("mcp IT: protected createPost requires bearer auth and executes with run-as headers", async () => {
+  if (!runtime) throw new Error("post-app runtime was not started");
+
+  const recipe = await callTool("probe_recipe_create", {
+    projectRootAbs: postAppProjectRootAbs,
+    classHint: postControllerFqcn,
+    methodHint: "createPost",
+    intentMode: "regression_http_only",
+    authToken: "alice-token",
+  });
+  assert.equal(recipe.structuredContent.resultType, "recipe");
+  assert.equal(recipe.structuredContent.status, "regression_http_only_ready");
+  assert.equal(recipe.structuredContent.requestCandidates[0].method, "POST");
+  assert.equal(recipe.structuredContent.requestCandidates[0].path, "/api/v1/posts");
+
+  const createdResponse = await executeCreatePostAs({
+    token: "alice-token",
+    runAsUser: "alice",
+    content: "Authenticated createPost request from the MCP integration flow.",
+  });
+  assert.equal(createdResponse.status, 201);
+  const createdPayload = await createdResponse.json();
+  assert.equal(createdPayload.authorUsername, "alice");
+  assert.equal(createdPayload.content, "Authenticated createPost request from the MCP integration flow.");
+
+  const unauthorizedResponse = await fetch(`${runtime.apiBaseUrl}/api/v1/posts`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-run-as-tenant": "fixture-tenant",
+      "x-run-as-user": "alice",
+    },
+    body: JSON.stringify({
+      content: "Missing bearer token must fail closed.",
+      visibility: "PUBLIC",
+      tags: ["fixture", "mcp", "auth"],
+    }),
+  });
+  assert.equal(unauthorizedResponse.status, 403);
 });
 
 test("mcp IT: actuate forces deterministic fixture branch outcomes for the same update request", async () => {
