@@ -6,6 +6,12 @@ export const RecipeGenerateInputSchema = {
     .describe(
       "Project root selected by orchestrator (absolute or relative to workspace); all inference stays scoped here.",
     ),
+  additionalSourceRoots: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Optional additional source roots (absolute or relative to workspace) to include in static inference scope.",
+    ),
   classHint: z
     .string()
     .describe("Fully-qualified class name (FQCN), e.g. com.example.catalog.CatalogShoeSpecifications"),

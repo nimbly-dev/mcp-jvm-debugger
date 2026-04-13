@@ -10,7 +10,7 @@ import {
   postServiceFqcn,
   postServiceSourceFileAbs,
   startPostAppWithAgent,
-} from "@test/integration/support/spring/social-platform-post.fixture";
+} from "@test/integrations/support/spring/social_platform/shared.fixture";
 
 const postCreateRequestFqcn = "com.example.social.post.api.model.PostCreateRequest";
 const postUpdateRequestFqcn = "com.example.social.post.api.model.PostUpdateRequest";
@@ -314,3 +314,4 @@ test("java-agent IT: include basepaths instrument an exact class outside include
     await classScopedRuntime.stop();
   }
 });
+

@@ -21,3 +21,13 @@ export function buildSearchRoots(rootAbs: string, workspaceRootAbs: string): str
 
   return uniqueStrings(roots.map((root) => path.resolve(root)));
 }
+
+export function buildSearchRootsWithAdditional(
+  rootAbs: string,
+  workspaceRootAbs: string,
+  additionalSourceRootsAbs?: string[],
+): string[] {
+  const roots = buildSearchRoots(rootAbs, workspaceRootAbs);
+  const additional = (additionalSourceRootsAbs ?? []).map((value) => path.resolve(value));
+  return uniqueStrings([...roots, ...additional]);
+}

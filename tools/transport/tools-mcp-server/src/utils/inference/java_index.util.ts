@@ -22,9 +22,17 @@ function normalizePathForMatch(filePath: string): string {
 }
 
 function isRuntimeJavaFile(rootAbs: string, fileAbs: string): boolean {
+  const normalizedRoot = normalizePathForMatch(path.resolve(rootAbs));
+  const rootIsJavaSourceRoot =
+    normalizedRoot.endsWith("/src/main/java") ||
+    normalizedRoot.endsWith("/target/generated-sources/openapi/src/main/java") ||
+    normalizedRoot.endsWith("/target/generated-sources/src/main/java") ||
+    normalizedRoot.endsWith("/build/generated/sources/annotationprocessor/java/main");
+
   const rel = normalizePathForMatch(path.relative(rootAbs, fileAbs));
   if (rel.startsWith("../")) return false;
   if (rel.includes("src/test/java/")) return false;
+  if (rootIsJavaSourceRoot) return true;
   return RUNTIME_SOURCE_MARKERS.some((marker) => rel.includes(marker));
 }
 
@@ -387,11 +395,27 @@ async function walkJavaFiles(
 
 export async function buildJavaIndex(args: {
   rootAbs: string;
+  additionalRootsAbs?: string[];
   maxFiles?: number;
   classHint?: string;
 }): Promise<JavaFileIndex[]> {
   const maxFiles = Math.max(20, Math.min(5_000, args.maxFiles ?? 1_000));
-  const files = await walkJavaFiles(args.rootAbs, maxFiles, args.classHint);
+  const roots = [
+    path.resolve(args.rootAbs),
+    ...(args.additionalRootsAbs ?? []).map((value) => path.resolve(value)),
+  ].filter((value, index, all) => all.indexOf(value) === index);
+  const files: string[] = [];
+  for (const root of roots) {
+    const remaining = maxFiles - files.length;
+    if (remaining <= 0) break;
+    const discovered = await walkJavaFiles(root, remaining, args.classHint);
+    for (const fileAbs of discovered) {
+      if (files.indexOf(fileAbs) < 0) {
+        files.push(fileAbs);
+      }
+      if (files.length >= maxFiles) break;
+    }
+  }
   const results: JavaFileIndex[] = [];
 
   for (const fileAbs of files) {

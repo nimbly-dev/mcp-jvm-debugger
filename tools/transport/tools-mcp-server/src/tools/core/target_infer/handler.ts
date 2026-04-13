@@ -9,6 +9,7 @@ import {
   RuntimeProbeUnreachableError,
   selectRuntimeValidatedLine,
 } from "@/utils/inference/runtime_line_selection.util";
+import { resolveAdditionalSourceRoots } from "@/utils/source_roots_resolve.util";
 import { discoverClassMethods, inferTargets } from "@/tools/core/target_infer/domain";
 import { TARGET_INFER_TOOL } from "@/tools/core/target_infer/contract";
 
@@ -41,7 +42,6 @@ function runtimeUnavailableResponse(args: {
 }
 
 export function registerTargetInferTool(server: McpServer, deps: TargetInferHandlerDeps): void {
-  const deprecatedSelectorKeys = ["serviceHint", "projectId", "workspaceRoot"] as const;
   const selectLine = async (args: {
     probeKey?: string;
     startLine: number;
@@ -78,25 +78,15 @@ export function registerTargetInferTool(server: McpServer, deps: TargetInferHand
       inputSchema: TARGET_INFER_TOOL.inputSchema,
     },
     async (input) => {
-      const deprecatedUsed = deprecatedSelectorKeys.filter(
-        (key) => key in (input as Record<string, unknown>),
-      );
-      if (deprecatedUsed.length > 0) {
-        const structuredContent = {
-          resultType: "report",
-          status: "project_selector_invalid",
-          reason: `Unsupported selector inputs: ${deprecatedUsed.join(", ")}`,
-          nextAction:
-            "Remove legacy selector fields and provide only projectRootAbs as the project selector.",
-        };
-        return {
-          content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }],
-          structuredContent,
-        };
-      }
-
-      const { projectRootAbs, discoveryMode, classHint, methodHint, lineHint, maxCandidates } =
-        input;
+      const {
+        projectRootAbs,
+        discoveryMode,
+        classHint,
+        methodHint,
+        lineHint,
+        maxCandidates,
+        additionalSourceRoots,
+      } = input;
       const validated = await validateProjectRootAbs(projectRootAbs);
       if (!validated.ok) {
         const structuredContent = {
@@ -113,6 +103,31 @@ export function registerTargetInferTool(server: McpServer, deps: TargetInferHand
       }
 
       const rootAbs = validated.projectRootAbs;
+      const additionalRoots = await resolveAdditionalSourceRoots({
+        workspaceRootAbs: deps.config.workspaceRootAbs,
+        ...(Array.isArray(additionalSourceRoots) &&
+        additionalSourceRoots.every((value) => typeof value === "string")
+          ? { additionalSourceRoots: additionalSourceRoots as string[] }
+          : {}),
+      });
+      if (!additionalRoots.ok) {
+        const structuredContent = {
+          resultType: "report",
+          status: "project_selector_invalid",
+          reasonCode: additionalRoots.reasonCode,
+          failedStep: additionalRoots.failedStep,
+          projectRoot: rootAbs,
+          hints: { projectRootAbs: rootAbs, classHint, methodHint, lineHint, additionalSourceRoots },
+          reason: additionalRoots.reason,
+          nextAction: additionalRoots.nextAction,
+          evidence: additionalRoots.evidence,
+          attemptedStrategies: ["additional_source_roots_validation"],
+        };
+        return {
+          content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }],
+          structuredContent,
+        };
+      }
       const selectedDiscoveryMode = discoveryMode ?? "ranked_candidates";
 
       if (selectedDiscoveryMode === "class_methods") {
@@ -133,6 +148,9 @@ export function registerTargetInferTool(server: McpServer, deps: TargetInferHand
 
         const discovered = await discoverClassMethods({
           rootAbs,
+          ...(additionalRoots.normalizedAdditionalSourceRoots.length > 0
+            ? { additionalRootsAbs: additionalRoots.normalizedAdditionalSourceRoots }
+            : {}),
           classHint: classHintTrimmed,
         });
         const chosenMatches = discovered.classes;
@@ -143,6 +161,9 @@ export function registerTargetInferTool(server: McpServer, deps: TargetInferHand
             status: "class_not_found",
             projectRoot: rootAbs,
             hints: { projectRootAbs: rootAbs, classHint },
+            ...(additionalRoots.normalizedAdditionalSourceRoots.length > 0
+              ? { additionalSourceRoots: additionalRoots.normalizedAdditionalSourceRoots }
+              : {}),
             scannedJavaFiles: discovered.scannedJavaFiles,
             nextAction:
               "Refine classHint (prefer exact class name or fully qualified class name) and rerun probe_target_infer.",
@@ -165,6 +186,9 @@ export function registerTargetInferTool(server: McpServer, deps: TargetInferHand
             status: "class_ambiguous",
             projectRoot: rootAbs,
             hints: { projectRootAbs: rootAbs, classHint },
+            ...(additionalRoots.normalizedAdditionalSourceRoots.length > 0
+              ? { additionalSourceRoots: additionalRoots.normalizedAdditionalSourceRoots }
+              : {}),
             scannedJavaFiles: discovered.scannedJavaFiles,
             matches,
             nextAction: "Refine classHint to exact FQCN to resolve a single class.",
@@ -209,6 +233,9 @@ export function registerTargetInferTool(server: McpServer, deps: TargetInferHand
           status: "ok",
           projectRoot: rootAbs,
           hints: { projectRootAbs: rootAbs, classHint },
+          ...(additionalRoots.normalizedAdditionalSourceRoots.length > 0
+            ? { additionalSourceRoots: additionalRoots.normalizedAdditionalSourceRoots }
+            : {}),
           scannedJavaFiles: discovered.scannedJavaFiles,
           class: {
             className: selected.className,
@@ -231,6 +258,9 @@ export function registerTargetInferTool(server: McpServer, deps: TargetInferHand
           failedStep: "input_validation",
           projectRoot: rootAbs,
           hints: { projectRootAbs: rootAbs, classHint, methodHint, lineHint },
+          ...(additionalRoots.normalizedAdditionalSourceRoots.length > 0
+            ? { additionalSourceRoots: additionalRoots.normalizedAdditionalSourceRoots }
+            : {}),
           reason: "ranked_candidates requires exact classHint for deterministic target selection.",
           nextAction:
             "Provide classHint as exact FQCN (preferred) or exact class name, then rerun probe_target_infer.",
@@ -243,6 +273,9 @@ export function registerTargetInferTool(server: McpServer, deps: TargetInferHand
 
       const inferred = await inferTargets({
         rootAbs,
+        ...(additionalRoots.normalizedAdditionalSourceRoots.length > 0
+          ? { additionalRootsAbs: additionalRoots.normalizedAdditionalSourceRoots }
+          : {}),
         maxCandidates: clampInt(maxCandidates ?? 8, 1, 20),
         ...(classHint ? { classHint } : {}),
         ...(methodHint ? { methodHint } : {}),
@@ -257,6 +290,9 @@ export function registerTargetInferTool(server: McpServer, deps: TargetInferHand
           failedStep: "target_inference",
           projectRoot: rootAbs,
           hints: { projectRootAbs: rootAbs, classHint, methodHint, lineHint },
+          ...(additionalRoots.normalizedAdditionalSourceRoots.length > 0
+            ? { additionalSourceRoots: additionalRoots.normalizedAdditionalSourceRoots }
+            : {}),
           scannedJavaFiles: inferred.scannedJavaFiles,
           nextAction:
             "Refine classHint/methodHint to exact runtime identifiers and rerun probe_target_infer.",
@@ -320,6 +356,9 @@ export function registerTargetInferTool(server: McpServer, deps: TargetInferHand
           failedStep: "line_validation",
           projectRoot: rootAbs,
           hints: { projectRootAbs: rootAbs, classHint, methodHint, lineHint },
+          ...(additionalRoots.normalizedAdditionalSourceRoots.length > 0
+            ? { additionalSourceRoots: additionalRoots.normalizedAdditionalSourceRoots }
+            : {}),
           scannedJavaFiles: inferred.scannedJavaFiles,
           evidence: [
             `candidateCount=${validatedCandidates.length}`,
@@ -347,6 +386,9 @@ export function registerTargetInferTool(server: McpServer, deps: TargetInferHand
           failedStep: "line_validation",
           projectRoot: rootAbs,
           hints: { projectRootAbs: rootAbs, classHint, methodHint, lineHint },
+          ...(additionalRoots.normalizedAdditionalSourceRoots.length > 0
+            ? { additionalSourceRoots: additionalRoots.normalizedAdditionalSourceRoots }
+            : {}),
           scannedJavaFiles: inferred.scannedJavaFiles,
           evidence: [
             `lineHint=${lineHint}`,
@@ -373,6 +415,9 @@ export function registerTargetInferTool(server: McpServer, deps: TargetInferHand
           failedStep: "target_selection",
           projectRoot: rootAbs,
           hints: { projectRootAbs: rootAbs, classHint, methodHint, lineHint },
+          ...(additionalRoots.normalizedAdditionalSourceRoots.length > 0
+            ? { additionalSourceRoots: additionalRoots.normalizedAdditionalSourceRoots }
+            : {}),
           scannedJavaFiles: inferred.scannedJavaFiles,
           matches: selectedCandidates.map((candidate) => ({
             ...candidate,
@@ -392,6 +437,9 @@ export function registerTargetInferTool(server: McpServer, deps: TargetInferHand
         status: "ok",
         projectRoot: rootAbs,
         hints: { projectRootAbs: rootAbs, classHint, methodHint, lineHint },
+        ...(additionalRoots.normalizedAdditionalSourceRoots.length > 0
+          ? { additionalSourceRoots: additionalRoots.normalizedAdditionalSourceRoots }
+          : {}),
         scannedJavaFiles: inferred.scannedJavaFiles,
         candidates: selectedCandidates.map((c) => ({
           ...c,

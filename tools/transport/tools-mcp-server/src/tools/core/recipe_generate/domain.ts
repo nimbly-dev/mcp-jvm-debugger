@@ -4,7 +4,7 @@ import { type IntentMode, type RecipeStatus } from "@tools-core/recipe_constants
 import { buildExecutionReadiness } from "@tools-core/execution_readiness.util";
 import { buildRecipeExecutionPlan } from "@tools-core/recipe_execution_plan.util";
 import { buildRoutingContext, resolveSelectedMode } from "@tools-core/recipe_intent_routing.util";
-import { buildSearchRoots } from "@tools-core/synthesis_search_roots.util";
+import { buildSearchRootsWithAdditional } from "@tools-core/synthesis_search_roots.util";
 import type {
   ExecutionReadiness,
   InferenceDiagnostics,
@@ -185,6 +185,7 @@ export async function generateRecipe(
   args: {
     rootAbs: string;
     workspaceRootAbs: string;
+    additionalSourceRootsAbs?: string[];
     classHint: string;
     methodHint: string;
     lineHint?: number;
@@ -215,6 +216,9 @@ export async function generateRecipe(
 
   const inferArgs: Parameters<typeof inferTargets>[0] = {
     rootAbs: normalized.rootAbs,
+    ...(normalized.additionalSourceRootsAbs?.length
+      ? { additionalRootsAbs: normalized.additionalSourceRootsAbs }
+      : {}),
     classHint: normalized.classHint,
     methodHint: normalized.methodHint,
     maxCandidates: normalized.maxCandidates,
@@ -344,6 +348,9 @@ export async function generateRecipe(
     runNotes.push("synthesis_failed_step=target_inference");
     const classInventory = await discoverClassMethodsFn({
       rootAbs: normalized.rootAbs,
+      ...(normalized.additionalSourceRootsAbs?.length
+        ? { additionalRootsAbs: normalized.additionalSourceRootsAbs }
+        : {}),
       classHint: normalized.classHint,
     });
     const hasSingleEmptyClassMatch =
@@ -393,7 +400,11 @@ export async function generateRecipe(
     };
   }
 
-  const searchRootsAbs = buildSearchRoots(normalized.rootAbs, normalized.workspaceRootAbs);
+  const searchRootsAbs = buildSearchRootsWithAdditional(
+    normalized.rootAbs,
+    normalized.workspaceRootAbs,
+    normalized.additionalSourceRootsAbs,
+  );
   const synthesis = await synthesizerRegistry.synthesize({
     rootAbs: normalized.rootAbs,
     workspaceRootAbs: normalized.workspaceRootAbs,

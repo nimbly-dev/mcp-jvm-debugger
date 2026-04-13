@@ -248,3 +248,76 @@ test("inferTargets honors explicit lineHint for declaration line disambiguation"
     assert.equal(out.candidates[0].line, 6);
   });
 });
+
+test("inferTargets resolves inherited target method when sibling source root is provided", async () => {
+  await withTempDir(async (dir: string) => {
+    const childFile = path.join(
+      dir,
+      "service-module",
+      "src",
+      "main",
+      "java",
+      "com",
+      "example",
+      "app",
+      "controller",
+      "AppController.java",
+    );
+    const parentFile = path.join(
+      dir,
+      "core-module",
+      "src",
+      "main",
+      "java",
+      "com",
+      "example",
+      "core",
+      "controller",
+      "AbstractAppController.java",
+    );
+    await fs.mkdir(path.dirname(childFile), { recursive: true });
+    await fs.mkdir(path.dirname(parentFile), { recursive: true });
+    await fs.writeFile(
+      childFile,
+      [
+        "package com.example.app.controller;",
+        "import com.example.core.controller.AbstractAppController;",
+        "public class AppController extends AbstractAppController {",
+        "}",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await fs.writeFile(
+      parentFile,
+      [
+        "package com.example.core.controller;",
+        "public abstract class AbstractAppController {",
+        "  public String getData() {",
+        '    return "ok";',
+        "  }",
+        "}",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const withoutAdditionalRoots = await inferTargets({
+      rootAbs: path.join(dir, "service-module"),
+      classHint: "com.example.app.controller.AppController",
+      methodHint: "getData",
+      maxCandidates: 5,
+    });
+    assert.equal(withoutAdditionalRoots.candidates.length, 0);
+
+    const withAdditionalRoots = await inferTargets({
+      rootAbs: path.join(dir, "service-module"),
+      additionalRootsAbs: [path.join(dir, "core-module", "src", "main", "java")],
+      classHint: "com.example.core.controller.AbstractAppController",
+      methodHint: "getData",
+      maxCandidates: 5,
+    });
+    assert.equal(withAdditionalRoots.candidates.length, 1);
+    assert.equal(withAdditionalRoots.candidates[0].methodName, "getData");
+  });
+});

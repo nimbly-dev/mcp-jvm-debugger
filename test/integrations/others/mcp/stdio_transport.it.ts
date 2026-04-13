@@ -3,7 +3,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import test from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 
-import { mcpServerEntryAbs, repoRootAbs } from "@test/integration/support/spring/social-platform-post.fixture";
+import { mcpServerEntryAbs, repoRootAbs } from "@test/integrations/support/spring/social_platform/shared.fixture";
 
 async function waitFor(
   check: () => boolean,
@@ -166,3 +166,4 @@ test("mcp IT: stdio transport keeps stdout protocol-only and writes diagnostics 
     await forceStop(child);
   }
 });
+

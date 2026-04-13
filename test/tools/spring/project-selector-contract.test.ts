@@ -62,7 +62,7 @@ async function withTempDir(run: (dir: string) => Promise<void>) {
   }
 }
 
-test("probe_recipe_create fails closed when legacy selector fields are provided", async () => {
+test("probe_recipe_create fails closed when additionalSourceRoots contains an invalid path", async () => {
   const handler = captureRegisteredHandler((server: any) =>
     registerRecipeCreateTool(server, {
       probeBaseUrl: "http://127.0.0.1:9193",
@@ -72,38 +72,36 @@ test("probe_recipe_create fails closed when legacy selector fields are provided"
   );
 
   const out = await handler({
-    projectRootAbs: "C:\\repo\\service",
-    classHint: "CatalogService",
+    projectRootAbs: path.resolve(__dirname, "..", ".."),
+    classHint: "com.example.CatalogService",
     methodHint: "save",
     intentMode: "regression_http_only",
-    workspaceRoot: "C:\\repo",
+    additionalSourceRoots: ["C:\\definitely\\missing\\source-root"],
   });
 
   assert.equal(out.structuredContent.status, "project_selector_invalid");
-  assert.equal(out.structuredContent.resultType, "report");
-  assert.equal(out.structuredContent.projectRoot, "C:\\repo\\service");
+  assert.equal(out.structuredContent.reasonCode, "additional_source_roots_invalid");
   assert.equal(out.structuredContent.failedStep, "input_validation");
-  assert.equal(Array.isArray(out.structuredContent.attemptedStrategies), true);
-  assert.match(out.structuredContent.reason, /workspaceRoot/);
 });
 
-test("probe_target_infer fails closed when legacy selector fields are provided", async () => {
+test("probe_target_infer fails closed when additionalSourceRoots exceeds max count", async () => {
   const handler = captureRegisteredHandler((server: any) =>
     registerTargetInferTool(server, {
       config: TARGET_INFER_CONFIG,
     }),
   );
 
+  const roots = Array.from({ length: 11 }, (_, idx) => `src/main/java/module-${idx}`);
   const out = await handler({
-    projectRootAbs: "C:\\repo\\service",
-    classHint: "CatalogService",
+    projectRootAbs: path.resolve(__dirname, "..", ".."),
+    classHint: "com.example.CatalogService",
     methodHint: "save",
-    workspaceRoot: "C:\\repo",
+    additionalSourceRoots: roots,
   });
 
   assert.equal(out.structuredContent.status, "project_selector_invalid");
-  assert.equal(out.structuredContent.resultType, "report");
-  assert.match(out.structuredContent.reason, /workspaceRoot/);
+  assert.equal(out.structuredContent.reasonCode, "additional_source_roots_limit_exceeded");
+  assert.equal(out.structuredContent.failedStep, "input_validation");
 });
 
 test("probe_recipe_create requires explicit projectRootAbs", async () => {

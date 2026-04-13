@@ -6,6 +6,7 @@ import { renderRecipeTemplate } from "@/lib/recipe_template";
 import { buildRecipeTemplateModel } from "@/models/recipe_output_model";
 import { validateProjectRootAbs } from "@/utils/project_root_validate.util";
 import { enrichRuntimeCapture } from "@/utils/recipe_generate/runtime_capture_enrich.util";
+import { resolveAdditionalSourceRoots } from "@/utils/source_roots_resolve.util";
 import { generateRecipe } from "@/tools/core/recipe_generate/domain";
 import { RECIPE_CREATE_TOOL } from "@/tools/core/recipe_generate/contract";
 
@@ -89,8 +90,6 @@ export function registerRecipeCreateTool(
   server: McpServer,
   deps: RecipeGenerateHandlerDeps,
 ): void {
-  const deprecatedSelectorKeys = ["serviceHint", "projectId", "workspaceRoot"] as const;
-
   server.registerTool(
     RECIPE_CREATE_TOOL.name,
     {
@@ -102,6 +101,11 @@ export function registerRecipeCreateTool(
         classHint: typeof input.classHint === "string" ? input.classHint : undefined,
         methodHint: typeof input.methodHint === "string" ? input.methodHint : undefined,
         lineHint: typeof input.lineHint === "number" ? input.lineHint : undefined,
+        additionalSourceRoots:
+          Array.isArray(input.additionalSourceRoots) &&
+          input.additionalSourceRoots.every((value) => typeof value === "string")
+            ? input.additionalSourceRoots
+            : undefined,
         apiBasePath: typeof input.apiBasePath === "string" ? input.apiBasePath : undefined,
         actuationEnabled:
           typeof input.actuationEnabled === "boolean" ? input.actuationEnabled : undefined,
@@ -112,35 +116,12 @@ export function registerRecipeCreateTool(
         actuationActuatorId:
           typeof input.actuationActuatorId === "string" ? input.actuationActuatorId : undefined,
       };
-      const deprecatedUsed = deprecatedSelectorKeys.filter(
-        (key) => key in (input as Record<string, unknown>),
-      );
-      if (deprecatedUsed.length > 0) {
-        const structuredContent = {
-          projectRoot:
-            typeof input.projectRootAbs === "string" ? input.projectRootAbs : "(project_root_unset)",
-          hints: inputHints,
-          resultType: "report",
-          status: "project_selector_invalid",
-          reasonCode: "project_selector_invalid",
-          failedStep: "input_validation",
-          evidence: [`unsupportedSelectors=${deprecatedUsed.join(",")}`],
-          attemptedStrategies: ["selector_input_validation"],
-          reason: `Unsupported selector inputs: ${deprecatedUsed.join(", ")}`,
-          nextAction:
-            "Remove legacy selector fields and provide only projectRootAbs as the project selector.",
-        };
-        return {
-          content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }],
-          structuredContent,
-        };
-      }
-
       const {
         projectRootAbs,
         classHint,
         methodHint,
         lineHint,
+        additionalSourceRoots,
         apiBasePath,
         intentMode,
         authToken,
@@ -173,6 +154,32 @@ export function registerRecipeCreateTool(
       }
 
       const projectRoot = validated.projectRootAbs;
+      const additionalRoots = await resolveAdditionalSourceRoots({
+        workspaceRootAbs: deps.workspaceRootAbs,
+        ...(Array.isArray(additionalSourceRoots) &&
+        additionalSourceRoots.every((value) => typeof value === "string")
+          ? { additionalSourceRoots: additionalSourceRoots as string[] }
+          : {}),
+      });
+      if (!additionalRoots.ok) {
+        const structuredContent = {
+          projectRoot,
+          hints: inputHints,
+          resultType: "report",
+          status: "project_selector_invalid",
+          reasonCode: additionalRoots.reasonCode,
+          failedStep: additionalRoots.failedStep,
+          evidence: additionalRoots.evidence,
+          attemptedStrategies: ["additional_source_roots_validation"],
+          reason: additionalRoots.reason,
+          nextAction: additionalRoots.nextAction,
+        };
+        return {
+          content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }],
+          structuredContent,
+        };
+      }
+
       if (!isFqcn(classHint)) {
         const structuredContent = {
           projectRoot,
@@ -196,6 +203,9 @@ export function registerRecipeCreateTool(
       const generateArgs: Parameters<typeof generateRecipe>[0] = {
         rootAbs: projectRoot,
         workspaceRootAbs: deps.workspaceRootAbs,
+        ...(additionalRoots.normalizedAdditionalSourceRoots.length > 0
+          ? { additionalSourceRootsAbs: additionalRoots.normalizedAdditionalSourceRoots }
+          : {}),
         classHint,
         methodHint,
         intentMode,
@@ -244,6 +254,10 @@ export function registerRecipeCreateTool(
           classHint,
           methodHint,
           lineHint,
+          additionalSourceRoots:
+            additionalRoots.normalizedAdditionalSourceRoots.length > 0
+              ? additionalRoots.normalizedAdditionalSourceRoots
+              : undefined,
           apiBasePath,
           actuationEnabled,
           actuationReturnBoolean,

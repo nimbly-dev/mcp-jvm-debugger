@@ -63,6 +63,7 @@ Capture timestamp naming:
 | `status` | Inference status code for deterministic next-step routing. | `probe_target_infer` | true | `"ok"` |
 | `projectRoot` | Absolute project root selected by orchestrator and used for scoped inference. | `probe_target_infer` | true | `"C:\\repo\\catalog-service"` |
 | `hints` | Input hints used for scoped inference (`classHint` should be exact class/FQCN). | `probe_target_infer` | true | `{"projectRootAbs":"C:\\repo\\catalog-service","classHint":"com.example.CatalogService"}` |
+| `hints.additionalSourceRoots` | Effective normalized additional source roots included in static inference scope. | `probe_target_infer` | false | `["C:\\repo\\core-module\\src\\main\\java"]` |
 | `scannedJavaFiles` | Approximate Java file scan count. | `probe_target_infer` | false | `412` |
 | `candidates` | Ranked target candidates for runtime probe keying. | `probe_target_infer` | false | `[{"key":"com.example.Catalog#save"}]` |
 | `candidates[].line` | Runtime-validated strict probe line used for candidate selection (`null` when unresolved). | `probe_target_infer` | false | `133` |
@@ -79,6 +80,8 @@ Capture timestamp naming:
 | `reasonCode` | Deterministic failure/disambiguation code for fail-closed routing. | `probe_target_infer` | false | `"target_ambiguous"` |
 | `failedStep` | Stage where deterministic selection failed. | `probe_target_infer` | false | `"target_selection"` |
 | `status=runtime_unreachable` | Fail-closed status when runtime line validation cannot reach probe endpoint. | `probe_target_infer` | false | `"runtime_unreachable"` |
+| `reasonCode=additional_source_roots_invalid` | Input validation failed because one or more `additionalSourceRoots` paths are missing or non-directory. | `probe_target_infer` | false | `"additional_source_roots_invalid"` |
+| `reasonCode=additional_source_roots_limit_exceeded` | Input validation failed because `additionalSourceRoots` exceeded max entry count (`10`). | `probe_target_infer` | false | `"additional_source_roots_limit_exceeded"` |
 
 ## probe_recipe_create
 
@@ -86,6 +89,7 @@ Capture timestamp naming:
 | --- | --- | --- | --- | --- |
 | `projectRoot` | Absolute project root selected by orchestrator and used for scoped recipe generation. | `probe_recipe_create` | true | `"C:\\repo\\catalog-service"` |
 | `hints` | Effective input hints and actuation preferences (`classHint` must be exact FQCN). | `probe_recipe_create` | true | `{"classHint":"com.example.catalog.CatalogService","lineHint":88}` |
+| `hints.additionalSourceRoots` | Effective normalized additional source roots included in static inference scope. | `probe_recipe_create` | false | `["C:\\repo\\core-module\\src\\main\\java"]` |
 | `hints.apiBasePath` | Optional API context/base path provided by orchestrator and applied to request candidates/trigger paths (anti-duplication). | `probe_recipe_create` | false | `"/api/v1"` |
 | `inferredTarget` | Best inferred runtime target for probe verification. | `probe_recipe_create` | false | `{"key":"com.example.CatalogService#save","line":88}` |
 | `requestCandidates` | HTTP request candidates inferred from code-based synthesizer analysis. | `probe_recipe_create` | true | `[{"method":"POST","path":"/v1/catalog"}]` |
@@ -95,6 +99,8 @@ Capture timestamp naming:
 | `resultType` | Output category (`recipe` or `report`). | `probe_recipe_create` | true | `"recipe"` |
 | `status` | Recipe generation status for orchestration decisions (`*_ready` or fail-closed report status). | `probe_recipe_create` | true | `"single_line_probe_ready"` |
 | `reasonCode` | Deterministic synthesis/report reason code for fail-closed routing. | `probe_recipe_create` | false | `"spring_entrypoint_not_proven"` |
+| `reasonCode=additional_source_roots_invalid` | Input validation failed because one or more `additionalSourceRoots` paths are missing or non-directory. | `probe_recipe_create` | false | `"additional_source_roots_invalid"` |
+| `reasonCode=additional_source_roots_limit_exceeded` | Input validation failed because `additionalSourceRoots` exceeded max entry count (`10`). | `probe_recipe_create` | false | `"additional_source_roots_limit_exceeded"` |
 | `nextAction` (target candidate missing) | For `reasonCode=target_candidate_missing`, guidance is refined when class inventory proves an exact class match with zero method bodies (for example inherited implementation in another module root). | `probe_recipe_create` | false | `"Matched class has no method bodies in projectRootAbs. If methods are inherited, use parent module/source roots."` |
 | `failedStep` | Specific synthesis stage that failed proof. | `probe_recipe_create` | false | `"spring_entrypoint_resolution"` |
 | `reasonCode` (execution input gating) | When `status=execution_input_required`, reason maps to the first unresolved category (`auth_input_required`, `request_confirmation_required`, `actuation_input_required`, `line_target_required_for_probe_mode`, `request_candidate_missing`). | `probe_recipe_create` | false | `"request_confirmation_required"` |

@@ -6,6 +6,12 @@ export const TargetInferInputSchema = {
     .describe(
       "Project root selected by orchestrator (absolute or relative to workspace); all inference stays scoped here.",
     ),
+  additionalSourceRoots: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Optional additional source roots (absolute or relative to workspace) to include in static inference scope.",
+    ),
   discoveryMode: z
     .enum(["ranked_candidates", "class_methods"])
     .optional()

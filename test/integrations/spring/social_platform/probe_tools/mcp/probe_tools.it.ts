@@ -11,7 +11,7 @@ import {
   socialPlatformRootAbs,
   startMcpClient,
   startPostAppWithAgent,
-} from "../support/spring/social-platform-post.fixture";
+} from "@test/integrations/support/spring/social_platform/shared.fixture";
 
 let runtime: Awaited<ReturnType<typeof startPostAppWithAgent>> | undefined;
 let mcp: Awaited<ReturnType<typeof startMcpClient>> | undefined;
@@ -84,6 +84,15 @@ async function executeCreatePostAs(args: { token: string; runAsUser: string; con
 }
 
 const postServiceFqcn = "com.example.social.post.app.service.PostService";
+const inheritedControllerFqcn = "com.example.social.post.app.controller.AppController";
+const inheritedMethodHints = [
+  "getData",
+  "createData",
+  "updateData",
+  "deleteData",
+  "patchData",
+  "requestMappedData",
+] as const;
 const postServiceSourceAbs = path.join(
   postAppProjectRootAbs,
   "src",
@@ -558,3 +567,30 @@ test("mcp IT: fail-closed paths cover invalid project roots, bad recipe hints, i
   assert.equal(missingCapture.structuredContent.result.found, false);
   assert.equal(missingCapture.structuredContent.result.reason, "capture_not_found");
 });
+
+test("mcp IT: inherited controller methods across Spring mappings return refined target_not_inferred guidance", async () => {
+  for (const methodHint of inheritedMethodHints) {
+    const result = await callTool("probe_recipe_create", {
+      projectRootAbs: postAppProjectRootAbs,
+      classHint: inheritedControllerFqcn,
+      methodHint,
+      intentMode: "regression_http_only",
+    });
+
+    assert.equal(result.structuredContent.resultType, "report");
+    assert.equal(result.structuredContent.status, "target_not_inferred");
+    assert.equal(result.structuredContent.reasonCode, "target_candidate_missing");
+    assert.equal(result.structuredContent.failedStep, "target_inference");
+    assert.equal(
+      result.structuredContent.nextAction,
+      "Matched class has no method bodies in projectRootAbs. If methods are inherited, use parent module/source roots.",
+    );
+    assert.equal(
+      result.structuredContent.attemptedStrategies.includes("class_inventory_exact_match"),
+      true,
+    );
+    assert.equal(result.structuredContent.evidence.includes("class_match=exact"), true);
+    assert.equal(result.structuredContent.evidence.includes("method_bodies=0"), true);
+  }
+});
+

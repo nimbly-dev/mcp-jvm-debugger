@@ -123,12 +123,7 @@ export class ServerConfigLoader {
   }
 
   private detectSessionWorkspaceRoot(): string | undefined {
-    const candidates = [
-      process.env.CODEX_WORKSPACE_ROOT,
-      process.env.CODEX_CWD,
-      process.env.INIT_CWD,
-      process.env.PWD,
-    ];
+    const candidates = [process.env.INIT_CWD, process.env.PWD];
     for (const c of candidates) {
       if (typeof c === "string" && c.trim().length > 0) {
         return c.trim();

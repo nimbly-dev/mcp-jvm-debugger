@@ -3,6 +3,7 @@ import type { IntentMode } from "@tools-core/recipe_constants.util";
 export type NormalizedRecipeGenerateInput = {
   rootAbs: string;
   workspaceRootAbs: string;
+  additionalSourceRootsAbs?: string[];
   classHint: string;
   methodHint: string;
   intentMode: IntentMode;
@@ -20,6 +21,7 @@ export type NormalizedRecipeGenerateInput = {
 export function normalizeRecipeGenerateInput(args: {
   rootAbs: string;
   workspaceRootAbs: string;
+  additionalSourceRootsAbs?: string[];
   classHint: string;
   methodHint: string;
   lineHint?: number;
@@ -37,6 +39,9 @@ export function normalizeRecipeGenerateInput(args: {
   return {
     rootAbs: args.rootAbs,
     workspaceRootAbs: args.workspaceRootAbs,
+    ...(args.additionalSourceRootsAbs?.length
+      ? { additionalSourceRootsAbs: args.additionalSourceRootsAbs }
+      : {}),
     classHint: args.classHint,
     methodHint: args.methodHint,
     intentMode: args.intentMode,
