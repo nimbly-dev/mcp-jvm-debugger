@@ -24,7 +24,7 @@ import {
   createDefaultSynthesizerRegistry,
   type SynthesizerRegistry,
 } from "@tools-registry/plugin.loader";
-import { inferTargets } from "@/tools/core/target_infer/domain";
+import { discoverClassMethods, inferTargets } from "@/tools/core/target_infer/domain";
 
 export type { RecipeCandidate, RecipeExecutionPlan } from "@tools-core/recipe_types.util";
 export type RecipeResultType = "recipe" | "report";
@@ -69,6 +69,7 @@ function deriveApplicationTypeFromSynthesizer(synthesizerUsed?: string): string 
 
 export type GenerateRecipeDeps = {
   inferTargetsFn?: typeof inferTargets;
+  discoverClassMethodsFn?: typeof discoverClassMethods;
   synthesizerRegistry?: SynthesizerRegistry;
   resolveAuthForRecipeFn?: typeof resolveAuthForRecipe;
 };
@@ -200,6 +201,7 @@ export async function generateRecipe(
   deps: GenerateRecipeDeps = {},
 ): Promise<GenerateRecipeResult> {
   const inferTargetsFn = deps.inferTargetsFn ?? inferTargets;
+  const discoverClassMethodsFn = deps.discoverClassMethodsFn ?? discoverClassMethods;
   const resolveAuthForRecipeFn = deps.resolveAuthForRecipeFn ?? resolveAuthForRecipe;
   const synthesizerRegistry = deps.synthesizerRegistry ?? createDefaultSynthesizerRegistry();
 
@@ -340,6 +342,27 @@ export async function generateRecipe(
     runNotes.push("failure_reason=target_candidate_missing");
     runNotes.push("synthesis_reason_code=target_candidate_missing");
     runNotes.push("synthesis_failed_step=target_inference");
+    const classInventory = await discoverClassMethodsFn({
+      rootAbs: normalized.rootAbs,
+      classHint: normalized.classHint,
+    });
+    const hasSingleEmptyClassMatch =
+      classInventory.matchMode === "exact" &&
+      classInventory.classes.length === 1 &&
+      classInventory.classes[0]?.methods.length === 0;
+    const nextAction = hasSingleEmptyClassMatch
+      ? "Matched class has no method bodies in projectRootAbs. If methods are inherited, use parent module/source roots."
+      : "Refine classHint/methodHint to exact runtime identifiers (add lineHint for strict probe intent) and rerun probe_recipe_create.";
+    const attemptedStrategies = ["target_inference_exact_match", "class_inventory_exact_match"];
+    const evidence = [
+      `classHint=${normalized.classHint}`,
+      `methodHint=${normalized.methodHint}`,
+      `lineHint=${typeof normalized.lineHint === "number" ? String(normalized.lineHint) : "(none)"}`,
+      `candidateCount=${inferred.candidates.length}`,
+      `classMatchMode=${classInventory.matchMode}`,
+      `classMatchCount=${classInventory.classes.length}`,
+      ...(hasSingleEmptyClassMatch ? ["class_match=exact", "method_bodies=0"] : []),
+    ];
     return {
       requestCandidates: [],
       executionPlan,
@@ -350,19 +373,13 @@ export async function generateRecipe(
       probeIntentRequested: routingDecision.probeIntentRequested,
       executionReadiness: readiness.executionReadiness,
       missingInputs: readiness.missingInputs,
-      nextAction:
-        "Refine classHint/methodHint to exact runtime identifiers (add lineHint for strict probe intent) and rerun probe_recipe_create.",
+      nextAction,
       failurePhase: "target_inference",
       failureReasonCode: "target_candidate_missing",
       reasonCode: "target_candidate_missing",
       failedStep: "target_inference",
-      attemptedStrategies: ["target_inference_exact_match"],
-      evidence: [
-        `classHint=${normalized.classHint}`,
-        `methodHint=${normalized.methodHint}`,
-        `lineHint=${typeof normalized.lineHint === "number" ? String(normalized.lineHint) : "(none)"}`,
-        `candidateCount=${inferred.candidates.length}`,
-      ],
+      attemptedStrategies,
+      evidence,
       inferenceDiagnostics: inferenceDiagnosticsBase,
       auth,
       notes: runNotes.filter(
