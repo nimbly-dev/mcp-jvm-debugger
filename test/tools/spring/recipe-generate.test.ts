@@ -65,6 +65,152 @@ test("fails closed when target is not inferred in regression_http_only mode", as
   assert.equal(result.inferenceDiagnostics.request.matched, false);
 });
 
+test("refines target_not_inferred guidance when class exists with zero method bodies", async () => {
+  const result = await generateRecipe(
+    {
+      rootAbs: "C:\\repo\\service",
+      workspaceRootAbs: "C:\\repo",
+      classHint: "com.example.web.AppController",
+      methodHint: "listApps",
+      intentMode: "regression_http_only",
+    },
+    {
+      inferTargetsFn: async () => ({
+        scannedJavaFiles: 12,
+        candidates: [],
+      }),
+      discoverClassMethodsFn: async () => ({
+        scannedJavaFiles: 12,
+        matchMode: "exact",
+        classes: [
+          {
+            file: "C:\\repo\\service\\src\\main\\java\\com\\example\\web\\AppController.java",
+            className: "AppController",
+            fqcn: "com.example.web.AppController",
+            methods: [],
+          },
+        ],
+      }),
+      synthesizerRegistry: {
+        synthesize: async () => {
+          throw new Error("synthesizer should not run when target is not inferred");
+        },
+      },
+      resolveAuthForRecipeFn: async () => okAuth,
+    },
+  );
+
+  assert.equal(result.status, "target_not_inferred");
+  assert.equal(result.resultType, "report");
+  assert.equal(result.reasonCode, "target_candidate_missing");
+  assert.equal(result.failedStep, "target_inference");
+  assert.equal(
+    result.nextAction,
+    "Matched class has no method bodies in projectRootAbs. If methods are inherited, use parent module/source roots.",
+  );
+  assert.deepEqual(result.attemptedStrategies, [
+    "target_inference_exact_match",
+    "class_inventory_exact_match",
+  ]);
+  assert.equal(result.evidence.includes("class_match=exact"), true);
+  assert.equal(result.evidence.includes("method_bodies=0"), true);
+  assert.equal(result.inferenceDiagnostics.target.matched, false);
+  assert.equal(result.inferenceDiagnostics.request.matched, false);
+});
+
+test("keeps generic target_not_inferred guidance when class inventory has no exact match", async () => {
+  const result = await generateRecipe(
+    {
+      rootAbs: "C:\\repo\\service",
+      workspaceRootAbs: "C:\\repo",
+      classHint: "com.example.web.AppController",
+      methodHint: "listApps",
+      intentMode: "regression_http_only",
+    },
+    {
+      inferTargetsFn: async () => ({
+        scannedJavaFiles: 12,
+        candidates: [],
+      }),
+      discoverClassMethodsFn: async () => ({
+        scannedJavaFiles: 12,
+        matchMode: "none",
+        classes: [],
+      }),
+      synthesizerRegistry: {
+        synthesize: async () => {
+          throw new Error("synthesizer should not run when target is not inferred");
+        },
+      },
+      resolveAuthForRecipeFn: async () => okAuth,
+    },
+  );
+
+  assert.equal(result.status, "target_not_inferred");
+  assert.equal(result.reasonCode, "target_candidate_missing");
+  assert.equal(
+    result.nextAction,
+    "Refine classHint/methodHint to exact runtime identifiers (add lineHint for strict probe intent) and rerun probe_recipe_create.",
+  );
+  assert.equal(result.evidence.includes("class_match=exact"), false);
+  assert.equal(result.evidence.includes("method_bodies=0"), false);
+  assert.equal(result.inferenceDiagnostics.target.matched, false);
+  assert.equal(result.inferenceDiagnostics.request.matched, false);
+});
+
+test("keeps generic target_not_inferred guidance when class inventory has multiple matches", async () => {
+  const result = await generateRecipe(
+    {
+      rootAbs: "C:\\repo\\service",
+      workspaceRootAbs: "C:\\repo",
+      classHint: "com.example.web.AppController",
+      methodHint: "listApps",
+      intentMode: "regression_http_only",
+    },
+    {
+      inferTargetsFn: async () => ({
+        scannedJavaFiles: 12,
+        candidates: [],
+      }),
+      discoverClassMethodsFn: async () => ({
+        scannedJavaFiles: 12,
+        matchMode: "exact",
+        classes: [
+          {
+            file: "C:\\repo\\service-a\\src\\main\\java\\com\\example\\web\\AppController.java",
+            className: "AppController",
+            fqcn: "com.example.web.AppController",
+            methods: [],
+          },
+          {
+            file: "C:\\repo\\service-b\\src\\main\\java\\com\\example\\web\\AppController.java",
+            className: "AppController",
+            fqcn: "com.example.web.AppController",
+            methods: [],
+          },
+        ],
+      }),
+      synthesizerRegistry: {
+        synthesize: async () => {
+          throw new Error("synthesizer should not run when target is not inferred");
+        },
+      },
+      resolveAuthForRecipeFn: async () => okAuth,
+    },
+  );
+
+  assert.equal(result.status, "target_not_inferred");
+  assert.equal(result.reasonCode, "target_candidate_missing");
+  assert.equal(
+    result.nextAction,
+    "Refine classHint/methodHint to exact runtime identifiers (add lineHint for strict probe intent) and rerun probe_recipe_create.",
+  );
+  assert.equal(result.evidence.includes("class_match=exact"), false);
+  assert.equal(result.evidence.includes("method_bodies=0"), false);
+  assert.equal(result.inferenceDiagnostics.target.matched, false);
+  assert.equal(result.inferenceDiagnostics.request.matched, false);
+});
+
 test("keeps target_not_inferred for probe mode when strict line target is unavailable", async () => {
   const result = await generateRecipe(
     {
