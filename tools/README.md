@@ -15,7 +15,7 @@ This folder is the workspace-style scaffold for TS tool packages.
 ## Integrated test location
 - Top-level fixture and integration scaffolding lives under:
   - `test/fixtures/spring-apps`
-  - `test/integration/mcp`
+  - `test/integrations/{fixture_app}/{feature}/{tool_name}`
 
 Cross-module MCP integration coverage belongs in the centralized top-level `test` tree, not under `tools/tests`.
 
@@ -49,3 +49,4 @@ These are folder-level placeholders only. Spring HTTP is the only active synthes
   - module exports must provide valid synthesizer plugin contract objects
   - plugin API version must be compatible
   - any bootstrap failure returns deterministic synthesis `report` (`failedStep=plugin_bootstrap`)
+

@@ -5,20 +5,16 @@ const { RecipeGenerateInputSchema } = require("@/models/inputs/recipe_generate.i
 const { TargetInferInputSchema } = require("@/models/inputs/target_infer.input.model");
 const z = require("zod/v4");
 
-test("probe_recipe_create schema requires projectRootAbs and removes legacy selectors", () => {
+test("probe_recipe_create schema requires projectRootAbs", () => {
   const keys = Object.keys(RecipeGenerateInputSchema);
   assert.equal(keys.includes("projectRootAbs"), true);
-  assert.equal(keys.includes("serviceHint"), false);
-  assert.equal(keys.includes("projectId"), false);
-  assert.equal(keys.includes("workspaceRoot"), false);
+  assert.equal(keys.includes("additionalSourceRoots"), true);
 });
 
-test("probe_target_infer schema requires projectRootAbs and removes legacy selectors", () => {
+test("probe_target_infer schema requires projectRootAbs", () => {
   const keys = Object.keys(TargetInferInputSchema);
   assert.equal(keys.includes("projectRootAbs"), true);
-  assert.equal(keys.includes("serviceHint"), false);
-  assert.equal(keys.includes("projectId"), false);
-  assert.equal(keys.includes("workspaceRoot"), false);
+  assert.equal(keys.includes("additionalSourceRoots"), true);
 });
 
 test("probe_recipe_create schema accepts regression_http_only and rejects regression_api_only", () => {

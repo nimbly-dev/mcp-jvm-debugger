@@ -131,6 +131,7 @@ function scoreCandidate(args: {
 
 export async function inferTargets(args: {
   rootAbs: string;
+  additionalRootsAbs?: string[];
   classHint?: string;
   methodHint?: string;
   lineHint?: number;
@@ -141,6 +142,7 @@ export async function inferTargets(args: {
     rootAbs: args.rootAbs,
     maxFiles: args.maxFiles ?? 1500,
   };
+  if (args.additionalRootsAbs?.length) indexArgs.additionalRootsAbs = args.additionalRootsAbs;
   if (args.classHint) indexArgs.classHint = args.classHint;
   const index = await buildJavaIndex(indexArgs);
 
@@ -207,6 +209,7 @@ export async function inferTargets(args: {
 
 export async function discoverClassMethods(args: {
   rootAbs: string;
+  additionalRootsAbs?: string[];
   classHint: string;
   maxFiles?: number;
 }): Promise<{
@@ -221,6 +224,7 @@ export async function discoverClassMethods(args: {
 
   const index = await buildJavaIndex({
     rootAbs: args.rootAbs,
+    ...(args.additionalRootsAbs?.length ? { additionalRootsAbs: args.additionalRootsAbs } : {}),
     maxFiles: args.maxFiles ?? 1500,
     classHint: args.classHint,
   });

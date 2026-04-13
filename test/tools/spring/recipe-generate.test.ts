@@ -669,4 +669,41 @@ test("emits non-blocking context path hint when apiBasePath is not provided", as
   );
 });
 
+test("passes additionalSourceRootsAbs into target inference for deterministic cross-root scope", async () => {
+  let seenAdditionalRoots: string[] | undefined;
+  const result = await generateRecipe(
+    {
+      rootAbs: "C:\\repo\\service",
+      workspaceRootAbs: "C:\\repo",
+      additionalSourceRootsAbs: ["C:\\repo\\core\\src\\main\\java"],
+      classHint: "CatalogController",
+      methodHint: "listCatalogShoes",
+      intentMode: "regression_http_only",
+    },
+    {
+      inferTargetsFn: async (args: any) => {
+        seenAdditionalRoots = args.additionalRootsAbs;
+        return {
+          scannedJavaFiles: 20,
+          candidates: [],
+        };
+      },
+      discoverClassMethodsFn: async () => ({
+        scannedJavaFiles: 20,
+        matchMode: "none",
+        classes: [],
+      }),
+      synthesizerRegistry: {
+        synthesize: async () => {
+          throw new Error("synthesizer should not run when target is not inferred");
+        },
+      },
+      resolveAuthForRecipeFn: async () => okAuth,
+    },
+  );
+
+  assert.equal(result.status, "target_not_inferred");
+  assert.deepEqual(seenAdditionalRoots, ["C:\\repo\\core\\src\\main\\java"]);
+});
+
 
