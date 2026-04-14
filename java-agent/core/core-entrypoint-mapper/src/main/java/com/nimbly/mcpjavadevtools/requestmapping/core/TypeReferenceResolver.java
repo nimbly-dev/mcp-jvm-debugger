@@ -32,6 +32,10 @@ public final class TypeReferenceResolver {
                     return importedMatches.get(0);
                 }
             }
+            TypeDescriptor wildcardMatch = resolveWildcardImport(imported, reference, byFqcn);
+            if (wildcardMatch != null) {
+                return wildcardMatch;
+            }
         }
         if (!owner.getPackageName().isBlank()) {
             List<TypeDescriptor> samePackageMatches = byFqcn.get(owner.getPackageName() + "." + reference);
@@ -44,6 +48,22 @@ public final class TypeReferenceResolver {
             return null;
         }
         return simpleMatches.size() == 1 ? simpleMatches.get(0) : null;
+    }
+
+    private static TypeDescriptor resolveWildcardImport(
+            String imported,
+            String reference,
+            Map<String, List<TypeDescriptor>> byFqcn
+    ) {
+        if (!imported.endsWith(".*")) {
+            return null;
+        }
+        String packageName = imported.substring(0, imported.length() - 2);
+        List<TypeDescriptor> wildcardMatches = byFqcn.get(packageName + "." + reference);
+        if (wildcardMatches == null || wildcardMatches.size() != 1) {
+            return null;
+        }
+        return wildcardMatches.get(0);
     }
 }
 
