@@ -33,6 +33,12 @@ This example is disabled by default and safe to modify. It demonstrates the comp
 - Path expression resolution (literals, constants, concatenation)
 - Final materialization through `PathMaterializer`
 
+### Separation of Concerns Boundary
+
+- Framework adapters own annotation parsing and parameter-source resolution (`query`, `path`, `body`, `header`).
+- Generic HTTP transport owns only materialization and template sampling from normalized `ResolvedParameter` inputs.
+- Do not place framework-specific annotation names/semantics inside `core-entrypoint-mapper` HTTP transport classes.
+
 Place your implementation in:
 
 ```

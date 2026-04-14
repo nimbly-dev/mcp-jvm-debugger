@@ -66,11 +66,13 @@ Return the exact request plan and probe verification steps.
 2. `project_context_validate` optionally validates the scoped project context for that root
 3. `probe_recipe_create` is called with `projectRootAbs`, `intentMode=single_line_probe`, exact FQCN in `classHint`, method/line hints, optional `apiBasePath`, and auth context
 4. The tool performs code-based route inference through synthesizer plugins backed by the generic JVM AST request-mapping resolver, returning `executionReadiness`, `requestCandidates`, `inferredTarget`, and `selectedMode`
-5. If `resultType=report`, treat it as fail-closed — read the compact execution metadata (`executionPlan.routingReason`, `executionPlan.steps[].actionCode`) and synthesis diagnostics
-6. On a ready state, `probe_reset` clears the baseline counter for the strict line key
-7. The orchestrator fires the selected HTTP trigger using the bearer token
-8. `probe_wait_for_hit` confirms the line was executed; if unavailable, `probe_get_status` provides a detailed status payload
-9. When `capturePreview.captureId` is present, `probe_get_capture` retrieves the full runtime capture for arguments and context evidence
+5. Framework adapters resolve annotation semantics (for example Spring `@RequestParam`, `@PathVariable`, `@RequestBody`) into normalized parameter metadata before HTTP materialization
+6. Generic HTTP transport materializes path/query/body templates from normalized parameters and applies optional project fixture profile overrides from `.mcp-java-dev-tools/request-template.properties`
+7. If `resultType=report`, treat it as fail-closed - read the compact execution metadata (`executionPlan.routingReason`, `executionPlan.steps[].actionCode`) and synthesis diagnostics
+8. On a ready state, `probe_reset` clears the baseline counter for the strict line key
+9. The orchestrator fires the selected HTTP trigger using the bearer token
+10. `probe_wait_for_hit` confirms the line was executed; if unavailable, `probe_get_status` provides a detailed status payload
+11. When `capturePreview.captureId` is present, `probe_get_capture` retrieves the full runtime capture for arguments and context evidence
 
 ### What You Get Back
 

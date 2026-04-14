@@ -1,6 +1,5 @@
 package com.nimbly.mcpjavadevtools.requestmapping.transport.http;
 
-import com.github.javaparser.ast.body.Parameter;
 import com.nimbly.mcpjavadevtools.requestmapping.ast.MethodContext;
 import com.nimbly.mcpjavadevtools.requestmapping.ast.ResolvedParameter;
 import com.nimbly.mcpjavadevtools.requestmapping.resolution.ResolvedMapping;
@@ -8,10 +7,8 @@ import com.nimbly.mcpjavadevtools.requestmapping.transport.TransportMaterializer
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 public final class PathMaterializer implements TransportMaterializer {
-    @Override
     public ResolvedMapping materialize(
             String framework,
             String httpMethod,
@@ -19,28 +16,38 @@ public final class PathMaterializer implements TransportMaterializer {
             String methodPath,
             MethodContext context
     ) {
+        return materialize(framework, httpMethod, classPath, methodPath, context, List.of());
+    }
+
+    @Override
+    public ResolvedMapping materialize(
+            String framework,
+            String httpMethod,
+            String classPath,
+            String methodPath,
+            MethodContext context,
+            List<ResolvedParameter> parameters
+    ) {
         String resolvedPath = joinPaths(classPath, methodPath);
         List<String> queryParts = new ArrayList<>();
         List<String> pathParameters = new ArrayList<>();
         String bodyTemplate = null;
 
-        for (Parameter parameter : context.method().getParameters()) {
-            Optional<ResolvedParameter> resolvedParameter = ParameterTemplateBuilder.resolveParameter(parameter);
-            if (resolvedParameter.isEmpty()) {
-                continue;
-            }
-            ResolvedParameter param = resolvedParameter.get();
+        for (ResolvedParameter param : parameters) {
             if (param.getKind().equals("query")) {
                 queryParts.add(param.getName() + "="
                         + ParameterTemplateBuilder.sampleValueForParameter(param.getName(), param.getType()));
             } else if (param.getKind().equals("path")) {
-                String value = ParameterTemplateBuilder.sampleValueForType(param.getType());
+                String value = ParameterTemplateBuilder.samplePathValueForParameter(
+                        param.getName(),
+                        param.getType()
+                );
                 resolvedPath = resolvedPath
                         .replace("{" + param.getName() + "}", value)
                         .replace(":" + param.getName(), value);
                 pathParameters.add(param.getName() + "=" + value);
             } else if (param.getKind().equals("body")) {
-                bodyTemplate = ParameterTemplateBuilder.sampleBodyForType(param.getType());
+                bodyTemplate = ParameterTemplateBuilder.sampleBodyForParameter(param.getName(), param.getType());
             }
         }
 
