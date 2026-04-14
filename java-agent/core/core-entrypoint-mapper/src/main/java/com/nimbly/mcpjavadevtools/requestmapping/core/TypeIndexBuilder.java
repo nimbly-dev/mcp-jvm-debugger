@@ -74,7 +74,9 @@ public final class TypeIndexBuilder {
                     .map(declaration -> declaration.getNameAsString())
                     .orElse("");
             List<String> imports = compilationUnit.getImports().stream()
-                    .map(importDeclaration -> importDeclaration.getNameAsString())
+                    .filter(importDeclaration -> !importDeclaration.isStatic())
+                    .map(importDeclaration -> importDeclaration.getNameAsString()
+                            + (importDeclaration.isAsterisk() ? ".*" : ""))
                     .toList();
             List<TypeDescriptor> out = new ArrayList<>();
             for (TypeDeclaration<?> type : compilationUnit.getTypes()) {
