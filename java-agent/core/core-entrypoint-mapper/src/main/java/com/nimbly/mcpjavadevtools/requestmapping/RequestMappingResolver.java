@@ -14,6 +14,7 @@ import com.nimbly.mcpjavadevtools.requestmapping.core.TypeIndexBuilder;
 import com.nimbly.mcpjavadevtools.requestmapping.extractor.ExtractorRegistry;
 import com.nimbly.mcpjavadevtools.requestmapping.extractor.MappingExtractor;
 import com.nimbly.mcpjavadevtools.requestmapping.resolution.ResolvedMapping;
+import com.nimbly.mcpjavadevtools.requestmapping.transport.http.ParameterTemplateBuilder;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -59,6 +60,8 @@ public final class RequestMappingResolver {
                     BOOTSTRAP_STRATEGIES
             );
         }
+        ParameterTemplateBuilder.configureForProjectRoot(projectRoot);
+        String templateProfileSource = ParameterTemplateBuilder.activeProfileSource();
 
         List<Path> scanRoots = new ArrayList<>();
         scanRoots.add(projectRoot);
@@ -158,7 +161,8 @@ public final class RequestMappingResolver {
                             primaryType,
                             context,
                             extractor.strategyId(),
-                            resolved.get()
+                            resolved.get(),
+                            templateProfileSource
                     );
                 }
             }
@@ -184,21 +188,23 @@ public final class RequestMappingResolver {
             TypeDescriptor primaryType,
             MethodContext context,
             String strategyId,
-            ResolvedMapping mapping
+            ResolvedMapping mapping,
+            String templateProfileSource
     ) {
         SuccessResponse response = new SuccessResponse();
         response.status = "ok";
         response.contractVersion = CONTRACT_VERSION;
         response.framework = mapping.getFramework();
         response.requestSource = mapping.getRequestSource();
-        response.requestCandidate = buildRequestCandidate(mapping, context);
+        response.requestCandidate = buildRequestCandidate(mapping, context, templateProfileSource);
         response.matchedTypeFile = primaryType.getFileAbs().toString();
         response.matchedRootAbs = projectRoot.toString();
         response.evidence = List.of(
                 "resolvedType=" + primaryType.getFqcn(),
                 "mappingOwner=" + context.owner().getFqcn(),
                 "methodHint=" + request.methodHint,
-                "framework=" + mapping.getFramework()
+                "framework=" + mapping.getFramework(),
+                "templateProfile=" + templateProfileSource
         );
         response.attemptedStrategies = List.of("java_ast_index_lookup", strategyId);
         if (mapping.getExtensions() != null && !mapping.getExtensions().isEmpty()) {
@@ -207,7 +213,11 @@ public final class RequestMappingResolver {
         return response;
     }
 
-    private static RequestCandidate buildRequestCandidate(ResolvedMapping mapping, MethodContext context) {
+    private static RequestCandidate buildRequestCandidate(
+            ResolvedMapping mapping,
+            MethodContext context,
+            String templateProfileSource
+    ) {
         RequestCandidate candidate = new RequestCandidate();
         candidate.method = mapping.getHttpMethod();
         candidate.path = mapping.getMaterializedPath();
@@ -221,13 +231,34 @@ public final class RequestMappingResolver {
         List<String> rationale = new ArrayList<>(List.of(
                 "Resolved HTTP mapping from Java AST.",
                 "Mapping owner: " + context.owner().getFqcn(),
-                "Framework resolver: " + mapping.getFramework()
+                "Framework resolver: " + mapping.getFramework(),
+                "Request template profile: " + templateProfileSource
         ));
         if (!mapping.getPathParameters().isEmpty()) {
             rationale.add("Materialized path params: " + String.join(", ", mapping.getPathParameters()));
         }
         candidate.rationale = rationale;
+
+        if (usesFallbackTemplateSample(candidate)) {
+            candidate.assumptions = List.of(
+                    "Request template contains built-in fallback sample values and may not match runtime fixture constraints."
+            );
+            candidate.needsConfirmation = List.of(
+                    "Provide project fixture overrides in .mcp-java-dev-tools/request-template.properties for stable endpoint assertions."
+            );
+        }
         return candidate;
+    }
+
+    private static boolean usesFallbackTemplateSample(RequestCandidate candidate) {
+        String fallbackQuery = ParameterTemplateBuilder.fallbackQuerySample();
+        String fallbackBody = ParameterTemplateBuilder.fallbackBodySample();
+        boolean hasFallbackQuery = candidate.queryTemplate != null
+                && !candidate.queryTemplate.isBlank()
+                && candidate.queryTemplate.contains("=" + fallbackQuery);
+        boolean hasFallbackBody = candidate.bodyTemplate != null
+                && candidate.bodyTemplate.equals(fallbackBody);
+        return hasFallbackQuery || hasFallbackBody;
     }
 
     private static FailureResponse failure(

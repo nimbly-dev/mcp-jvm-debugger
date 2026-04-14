@@ -1,7 +1,10 @@
 package com.nimbly.mcpjavadevtools.requestmapping.transport;
 
 import com.nimbly.mcpjavadevtools.requestmapping.ast.MethodContext;
+import com.nimbly.mcpjavadevtools.requestmapping.ast.ResolvedParameter;
 import com.nimbly.mcpjavadevtools.requestmapping.resolution.ResolvedMapping;
+
+import java.util.List;
 
 public interface TransportMaterializer {
     ResolvedMapping materialize(
@@ -9,7 +12,8 @@ public interface TransportMaterializer {
             String httpMethod,
             String classPath,
             String methodPath,
-            MethodContext context
+            MethodContext context,
+            List<ResolvedParameter> parameters
     );
 }
 

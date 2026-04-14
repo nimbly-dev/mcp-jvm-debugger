@@ -37,3 +37,25 @@ These folders are placeholders only. Spring HTTP is the only active request-mapp
 
 `adapter-request-mapper-grpc-rpc` should be treated as a future-work placeholder, not as evidence that the current core request-mapping contract is transport-neutral. The shared resolver output is HTTP-specific today.
 
+## Request Template Fixtures
+
+Route Synthesis supports an optional project-local fixture profile file:
+
+- Path: `<projectRoot>/.mcp-java-dev-tools/request-template.properties`
+- Optional override path via env: `MCP_REQUEST_TEMPLATE_PROFILE_PATH`
+
+Supported keys:
+
+- `sample.query.default=value`
+- `sample.body.default={"example":"value"}`
+- `sample.query.param.<name>=...`
+- `sample.path.param.<name>=...`
+- `sample.body.param.<name>=...`
+
+When no profile is provided, built-in deterministic fallback samples are used.
+
+## Mapper SoC Boundary
+
+- Framework adapters (for example Spring HTTP) resolve framework annotations into normalized request parameters.
+- Core HTTP transport materializes templates from normalized parameters and does not parse framework-specific annotations.
+

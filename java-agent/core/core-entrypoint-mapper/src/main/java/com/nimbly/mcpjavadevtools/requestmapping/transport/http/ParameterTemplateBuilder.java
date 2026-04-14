@@ -1,22 +1,14 @@
 package com.nimbly.mcpjavadevtools.requestmapping.transport.http;
 
-import com.github.javaparser.ast.body.Parameter;
-import com.github.javaparser.ast.expr.AnnotationExpr;
-import com.github.javaparser.ast.expr.Expression;
-import com.github.javaparser.ast.expr.NormalAnnotationExpr;
-import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
-import com.github.javaparser.ast.expr.StringLiteralExpr;
 import com.github.javaparser.ast.type.Type;
-import com.nimbly.mcpjavadevtools.requestmapping.ast.ResolvedParameter;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.function.Predicate;
 
 public final class ParameterTemplateBuilder {
-    private static final String DEFAULT_QUERY_SAMPLE = "value";
-    private static final String DEFAULT_BODY_SAMPLE = "{\"example\":\"value\"}";
+    private static volatile RequestTemplateProfile profile = RequestTemplateProfile.defaults();
 
     private static final List<NameRule> QUERY_NAME_RULES = List.of(
             new NameRule(ParameterTemplateBuilder::isSortParameter, "priceSale,asc")
@@ -41,6 +33,22 @@ public final class ParameterTemplateBuilder {
     private ParameterTemplateBuilder() {
     }
 
+    public static void configureForProjectRoot(Path projectRoot) {
+        profile = RequestTemplateProfile.load(projectRoot);
+    }
+
+    public static String activeProfileSource() {
+        return profile.source();
+    }
+
+    public static String fallbackQuerySample() {
+        return RequestTemplateProfileConstants.DEFAULT_QUERY_SAMPLE;
+    }
+
+    public static String fallbackBodySample() {
+        return RequestTemplateProfileConstants.DEFAULT_BODY_SAMPLE;
+    }
+
     public static String sampleValueForType(Type type) {
         String normalizedType = normalizeType(type);
         for (TypeRule rule : QUERY_TYPE_RULES) {
@@ -48,10 +56,14 @@ public final class ParameterTemplateBuilder {
                 return rule.sampleValue();
             }
         }
-        return DEFAULT_QUERY_SAMPLE;
+        return profile.defaultQuerySample();
     }
 
     public static String sampleValueForParameter(String parameterName, Type type) {
+        String querySampleOverride = profile.querySampleForParam(parameterName);
+        if (querySampleOverride != null) {
+            return querySampleOverride;
+        }
         String normalizedName = normalizeName(parameterName);
         for (NameRule rule : QUERY_NAME_RULES) {
             if (rule.matches(normalizedName)) {
@@ -61,6 +73,14 @@ public final class ParameterTemplateBuilder {
         return sampleValueForType(type);
     }
 
+    public static String samplePathValueForParameter(String parameterName, Type type) {
+        String pathSampleOverride = profile.pathSampleForParam(parameterName);
+        if (pathSampleOverride != null) {
+            return pathSampleOverride;
+        }
+        return sampleValueForParameter(parameterName, type);
+    }
+
     public static String sampleBodyForType(Type type) {
         String normalizedType = normalizeType(type);
         for (TypeRule rule : BODY_TYPE_RULES) {
@@ -68,54 +88,15 @@ public final class ParameterTemplateBuilder {
                 return rule.sampleValue();
             }
         }
-        return DEFAULT_BODY_SAMPLE;
+        return profile.defaultBodySample();
     }
 
-    public static Optional<ResolvedParameter> resolveParameter(Parameter parameter) {
-        for (AnnotationExpr annotation : parameter.getAnnotations()) {
-            String name = annotationSimpleName(annotation);
-            if (name.equals("RequestParam") || name.equals("QueryParam")) {
-                String requestName = resolveNamedParameter(annotation, parameter.getNameAsString());
-                return Optional.of(new ResolvedParameter("query", requestName, parameter.getType()));
-            }
-            if (name.equals("PathVariable") || name.equals("PathParam")) {
-                String requestName = resolveNamedParameter(annotation, parameter.getNameAsString());
-                return Optional.of(new ResolvedParameter("path", requestName, parameter.getType()));
-            }
-            if (name.equals("RequestBody")) {
-                return Optional.of(new ResolvedParameter("body", parameter.getNameAsString(), parameter.getType()));
-            }
-            if (name.equals("RequestHeader") || name.equals("HeaderParam")) {
-                String requestName = resolveNamedParameter(annotation, parameter.getNameAsString());
-                return Optional.of(new ResolvedParameter("header", requestName, parameter.getType()));
-            }
+    public static String sampleBodyForParameter(String parameterName, Type type) {
+        String bodySampleOverride = profile.bodySampleForParam(parameterName);
+        if (bodySampleOverride != null) {
+            return bodySampleOverride;
         }
-        return Optional.empty();
-    }
-
-    private static String resolveNamedParameter(AnnotationExpr annotation, String fallback) {
-        if (annotation instanceof SingleMemberAnnotationExpr singleMember
-                && singleMember.getMemberValue() instanceof StringLiteralExpr stringLiteral) {
-            return stringLiteral.getValue();
-        }
-        if (annotation instanceof NormalAnnotationExpr normalAnnotation) {
-            for (String candidate : List.of("name", "value")) {
-                Optional<Expression> value = normalAnnotation.getPairs().stream()
-                        .filter(pair -> pair.getNameAsString().equals(candidate))
-                        .map(pair -> pair.getValue())
-                        .findFirst();
-                if (value.isPresent() && value.get() instanceof StringLiteralExpr stringLiteral) {
-                    return stringLiteral.getValue();
-                }
-            }
-        }
-        return fallback;
-    }
-
-    private static String annotationSimpleName(AnnotationExpr annotation) {
-        String raw = annotation.getNameAsString();
-        int idx = raw.lastIndexOf('.');
-        return idx >= 0 ? raw.substring(idx + 1) : raw;
+        return sampleBodyForType(type);
     }
 
     private static String normalizeType(Type type) {
