@@ -1,0 +1,79 @@
+{
+  "targets": [
+    {
+      "type": "class_method",
+      "selectors": {
+        "fqcn": "com.example.social.post.app.controller.CreatorDigestController",
+        "method": "getCreatorDigest",
+        "signature": "(java.lang.String)",
+        "sourceRoot": "test/fixtures/spring-apps/social-platform/post-service/post-app"
+      }
+    },
+    {
+      "type": "class_method",
+      "selectors": {
+        "fqcn": "com.example.social.post.app.controller.CreatorDigestController",
+        "method": "patchCreatorDigest",
+        "signature": "(java.lang.String,com.example.social.post.api.CreatorDigestPatchRequest)",
+        "sourceRoot": "test/fixtures/spring-apps/social-platform/post-service/post-app"
+      }
+    }
+  ],
+  "prerequisites": [
+    {
+      "key": "auth.bearer",
+      "required": true,
+      "secret": true
+    },
+    {
+      "key": "creatorId",
+      "required": true,
+      "secret": false
+    }
+  ],
+  "steps": [
+    {
+      "order": 1,
+      "id": "get_creator_digest",
+      "targetRef": 0,
+      "protocol": "http",
+      "transport": {
+        "method": "GET",
+        "path": "/api/v2/creators/${creatorId}/digest"
+      },
+      "inputs": {
+        "query.includeStats": "true"
+      }
+    },
+    {
+      "order": 2,
+      "id": "patch_missing_digest",
+      "targetRef": 1,
+      "protocol": "http",
+      "transport": {
+        "method": "PATCH",
+        "path": "/api/v2/creators/not-found/digest"
+      },
+      "inputs": {
+        "bodyRef": "fixtures/post/patch_creator_digest_minimal.json"
+      }
+    }
+  ],
+  "expectations": [
+    {
+      "stepOrder": 1,
+      "type": "http_status",
+      "equals": 200
+    },
+    {
+      "stepOrder": 2,
+      "type": "http_status",
+      "equals": 404
+    },
+    {
+      "type": "outcome_status",
+      "equals": "pass"
+    }
+  ]
+}
+

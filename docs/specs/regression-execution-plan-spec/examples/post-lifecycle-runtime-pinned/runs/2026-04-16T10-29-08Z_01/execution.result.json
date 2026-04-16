@@ -1,0 +1,23 @@
+{
+  "status": "pass",
+  "startedAt": "2026-04-16T10:29:11Z",
+  "endedAt": "2026-04-16T10:29:17Z",
+  "preflight": {
+    "status": "ready"
+  },
+  "steps": [
+    {
+      "order": 1,
+      "id": "create_post",
+      "status": "pass",
+      "httpStatus": 201
+    },
+    {
+      "order": 2,
+      "id": "update_post",
+      "status": "pass",
+      "httpStatus": 200
+    }
+  ]
+}
+

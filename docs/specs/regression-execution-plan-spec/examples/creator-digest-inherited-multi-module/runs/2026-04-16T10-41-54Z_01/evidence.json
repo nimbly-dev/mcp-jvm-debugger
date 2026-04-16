@@ -1,0 +1,22 @@
+{
+  "targetResolution": [
+    {
+      "stepOrder": 1,
+      "fqcn": "com.example.social.post.app.controller.CreatorDigestController",
+      "method": "getCreatorDigest",
+      "sourceRoot": "test/fixtures/spring-apps/social-platform/post-service/post-app"
+    },
+    {
+      "stepOrder": 2,
+      "fqcn": "com.example.social.post.app.controller.CreatorDigestController",
+      "method": "patchCreatorDigest",
+      "sourceRoot": "test/fixtures/spring-apps/social-platform/post-service/post-app"
+    }
+  ],
+  "probe": {
+    "enabled": true,
+    "mode": "auto",
+    "status": "verified"
+  }
+}
+

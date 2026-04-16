@@ -1,0 +1,16 @@
+{
+  "targetResolution": [
+    {
+      "stepOrder": 1,
+      "fqcn": "com.example.social.user.app.service.ProfileScoreService",
+      "method": "recomputeProfileScore",
+      "sourceRoot": "test/fixtures/spring-apps/social-platform/user-service/user-app"
+    }
+  ],
+  "probe": {
+    "enabled": true,
+    "mode": "auto",
+    "status": "verified"
+  }
+}
+

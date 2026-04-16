@@ -1,0 +1,16 @@
+{
+  "status": "pass",
+  "startedAt": "2026-04-16T11:02:15Z",
+  "endedAt": "2026-04-16T11:02:18Z",
+  "preflight": {
+    "status": "ready"
+  },
+  "steps": [
+    {
+      "order": 1,
+      "id": "set_score_signal",
+      "status": "pass"
+    }
+  ]
+}
+

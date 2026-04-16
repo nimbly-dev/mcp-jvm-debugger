@@ -1,0 +1,86 @@
+{
+  "targets": [
+    {
+      "type": "class_method",
+      "selectors": {
+        "fqcn": "com.example.social.post.app.controller.PostController",
+        "method": "createPost",
+        "signature": "(com.example.social.post.api.CreatePostRequest)",
+        "sourceRoot": "test/fixtures/spring-apps/social-platform/post-service/post-app"
+      }
+    },
+    {
+      "type": "class_method",
+      "selectors": {
+        "fqcn": "com.example.social.post.app.controller.PostController",
+        "method": "deletePost",
+        "signature": "(java.lang.String)",
+        "sourceRoot": "test/fixtures/spring-apps/social-platform/post-service/post-app"
+      }
+    }
+  ],
+  "prerequisites": [
+    {
+      "key": "auth.bearer",
+      "required": true,
+      "secret": true
+    },
+    {
+      "key": "tenantId",
+      "required": true,
+      "secret": false
+    }
+  ],
+  "steps": [
+    {
+      "order": 1,
+      "id": "create_post",
+      "targetRef": 0,
+      "protocol": "http",
+      "transport": {
+        "method": "POST",
+        "path": "/api/v1/posts"
+      },
+      "inputs": {
+        "query.tenantId": "${tenantId}",
+        "bodyRef": "fixtures/post/create_post_minimal.json"
+      },
+      "extract": [
+        {
+          "from": "response.body.id",
+          "as": "postId"
+        }
+      ]
+    },
+    {
+      "order": 2,
+      "id": "delete_post",
+      "targetRef": 1,
+      "protocol": "http",
+      "transport": {
+        "method": "DELETE",
+        "path": "/api/v1/posts/${postId}"
+      },
+      "inputs": {
+        "query.tenantId": "${tenantId}"
+      }
+    }
+  ],
+  "expectations": [
+    {
+      "stepOrder": 1,
+      "type": "http_status",
+      "equals": 201
+    },
+    {
+      "stepOrder": 2,
+      "type": "http_status",
+      "equals": 204
+    },
+    {
+      "type": "outcome_status",
+      "equals": "pass"
+    }
+  ]
+}
+

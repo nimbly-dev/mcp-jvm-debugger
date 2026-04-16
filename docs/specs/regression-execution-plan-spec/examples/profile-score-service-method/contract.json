@@ -1,0 +1,59 @@
+{
+  "targets": [
+    {
+      "type": "class_method",
+      "selectors": {
+        "fqcn": "com.example.social.user.app.service.ProfileScoreService",
+        "method": "recomputeProfileScore",
+        "signature": "(java.lang.String,java.util.Map)",
+        "sourceRoot": "test/fixtures/spring-apps/social-platform/user-service/user-app"
+      }
+    }
+  ],
+  "prerequisites": [
+    {
+      "key": "userId",
+      "required": true,
+      "secret": false
+    },
+    {
+      "key": "scoreSignalRef",
+      "required": true,
+      "secret": false
+    }
+  ],
+  "steps": [
+    {
+      "order": 1,
+      "id": "set_score_signal",
+      "targetRef": 0,
+      "protocol": "custom",
+      "transport": {
+        "actionType": "invoke_method"
+      },
+      "inputs": {
+        "arg.userId": "${userId}",
+        "arg.signalMapRef": "${scoreSignalRef}"
+      },
+      "extract": [
+        {
+          "from": "result.score",
+          "as": "newProfileScore"
+        }
+      ]
+    }
+  ],
+  "expectations": [
+    {
+      "stepOrder": 1,
+      "type": "matches",
+      "path": "result.score",
+      "pattern": "^[0-9]+$"
+    },
+    {
+      "type": "outcome_status",
+      "equals": "pass"
+    }
+  ]
+}
+
