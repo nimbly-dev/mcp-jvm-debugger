@@ -568,7 +568,16 @@ test("mcp IT: fail-closed paths cover invalid project roots, bad recipe hints, i
   assert.equal(missingCapture.structuredContent.result.reason, "capture_not_found");
 });
 
-test("mcp IT: inherited controller methods across Spring mappings return refined target_not_inferred guidance", async () => {
+test("mcp IT: inherited controller methods across Spring mappings resolve deterministic request candidates", async () => {
+  const expectedByMethod: Record<(typeof inheritedMethodHints)[number], { method: string; path: string }> = {
+    getData: { method: "GET", path: "/api/v2/data" },
+    createData: { method: "POST", path: "/api/v2/data" },
+    updateData: { method: "PUT", path: "/api/v2/data/{id}" },
+    deleteData: { method: "DELETE", path: "/api/v2/data/{id}" },
+    patchData: { method: "PATCH", path: "/api/v2/data/{id}" },
+    requestMappedData: { method: "GET", path: "/api/v2/data/request" },
+  };
+
   for (const methodHint of inheritedMethodHints) {
     const result = await callTool("probe_recipe_create", {
       projectRootAbs: postAppProjectRootAbs,
@@ -577,20 +586,17 @@ test("mcp IT: inherited controller methods across Spring mappings return refined
       intentMode: "regression_http_only",
     });
 
-    assert.equal(result.structuredContent.resultType, "report");
-    assert.equal(result.structuredContent.status, "target_not_inferred");
-    assert.equal(result.structuredContent.reasonCode, "target_candidate_missing");
-    assert.equal(result.structuredContent.failedStep, "target_inference");
+    assert.equal(result.structuredContent.resultType, "recipe");
+    assert.equal(result.structuredContent.status, "regression_http_only_ready");
+    assert.equal(result.structuredContent.requestCandidates.length > 0, true);
     assert.equal(
-      result.structuredContent.nextAction,
-      "Matched class has no method bodies in projectRootAbs. If methods are inherited, use parent module/source roots.",
+      result.structuredContent.requestCandidates[0].method,
+      expectedByMethod[methodHint].method,
     );
     assert.equal(
-      result.structuredContent.attemptedStrategies.includes("class_inventory_exact_match"),
-      true,
+      result.structuredContent.requestCandidates[0].path,
+      expectedByMethod[methodHint].path,
     );
-    assert.equal(result.structuredContent.evidence.includes("class_match=exact"), true);
-    assert.equal(result.structuredContent.evidence.includes("method_bodies=0"), true);
   }
 });
 

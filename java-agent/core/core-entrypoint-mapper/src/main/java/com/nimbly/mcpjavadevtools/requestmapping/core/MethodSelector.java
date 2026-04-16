@@ -139,6 +139,49 @@ public final class MethodSelector {
 
         return out;
     }
+
+    public static List<MethodContext> collectMethodContextsByHint(
+            TypeDescriptor primaryType,
+            String methodHint,
+            Integer lineHint,
+            TypeIndex index
+    ) {
+        List<MethodContext> out = new ArrayList<>();
+        Set<String> visitedTypes = new HashSet<>();
+        Deque<TypeDescriptor> queue = new ArrayDeque<>();
+        queue.add(primaryType);
+
+        while (!queue.isEmpty()) {
+            TypeDescriptor currentType = queue.removeFirst();
+            if (!visitedTypes.add(currentType.getFqcn())) {
+                continue;
+            }
+
+            Integer currentLineHint = currentType == primaryType ? lineHint : null;
+            MethodDeclaration candidate = findMethod(currentType, methodHint, currentLineHint, -1);
+            if (candidate != null) {
+                out.addAll(collectMethodContexts(primaryType, candidate, index));
+                break;
+            }
+
+            if (!(currentType.getTypeDeclaration() instanceof ClassOrInterfaceDeclaration declaration)) {
+                continue;
+            }
+
+            List<ClassOrInterfaceType> parentTypes = new ArrayList<>();
+            parentTypes.addAll(declaration.getExtendedTypes());
+            parentTypes.addAll(declaration.getImplementedTypes());
+
+            for (ClassOrInterfaceType parentType : parentTypes) {
+                TypeDescriptor resolvedParent = index.resolveTypeReference(currentType, parentType.getNameAsString());
+                if (resolvedParent != null) {
+                    queue.addLast(resolvedParent);
+                }
+            }
+        }
+
+        return out;
+    }
 }
 
 

@@ -65,7 +65,8 @@ test("fails closed when target is not inferred in regression_http_only mode", as
   assert.equal(result.inferenceDiagnostics.request.matched, false);
 });
 
-test("refines target_not_inferred guidance when class exists with zero method bodies", async () => {
+test("promotes exact zero-method class match into synthesis fallback for inherited methods", async () => {
+  let seenInferredTargetFileAbs;
   const result = await generateRecipe(
     {
       rootAbs: "C:\\repo\\service",
@@ -92,29 +93,32 @@ test("refines target_not_inferred guidance when class exists with zero method bo
         ],
       }),
       synthesizerRegistry: {
-        synthesize: async () => {
-          throw new Error("synthesizer should not run when target is not inferred");
+        synthesize: async (input: any) => {
+          seenInferredTargetFileAbs = input.inferredTargetFileAbs;
+          return {
+            status: "report",
+            reasonCode: "spring_entrypoint_not_proven",
+            failedStep: "spring_entrypoint_resolution",
+            nextAction: "Provide inherited mapping source roots.",
+            evidence: ["resolver=stub"],
+            attemptedStrategies: ["stub_strategy"],
+            synthesizerUsed: "spring",
+          };
         },
       },
       resolveAuthForRecipeFn: async () => okAuth,
     },
   );
 
-  assert.equal(result.status, "target_not_inferred");
+  assert.equal(result.status, "api_request_not_inferred");
   assert.equal(result.resultType, "report");
-  assert.equal(result.reasonCode, "target_candidate_missing");
-  assert.equal(result.failedStep, "target_inference");
+  assert.equal(result.reasonCode, "spring_entrypoint_not_proven");
+  assert.equal(result.failedStep, "spring_entrypoint_resolution");
   assert.equal(
-    result.nextAction,
-    "Matched class has no method bodies in projectRootAbs. If methods are inherited, use parent module/source roots.",
+    seenInferredTargetFileAbs,
+    "C:\\repo\\service\\src\\main\\java\\com\\example\\web\\AppController.java",
   );
-  assert.deepEqual(result.attemptedStrategies, [
-    "target_inference_exact_match",
-    "class_inventory_exact_match",
-  ]);
-  assert.equal(result.evidence.includes("class_match=exact"), true);
-  assert.equal(result.evidence.includes("method_bodies=0"), true);
-  assert.equal(result.inferenceDiagnostics.target.matched, false);
+  assert.equal(result.inferenceDiagnostics.target.matched, true);
   assert.equal(result.inferenceDiagnostics.request.matched, false);
 });
 

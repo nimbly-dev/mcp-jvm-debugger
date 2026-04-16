@@ -199,9 +199,9 @@ export async function generateRecipe(
   };
   if (typeof normalized.lineHint === "number") inferArgs.lineHint = normalized.lineHint;
   const inferred = await inferTargetsFn(inferArgs);
-  const top = inferred.candidates[0];
+  let top = inferred.candidates[0];
 
-  const inferenceDiagnosticsBase: InferenceDiagnostics = {
+  let inferenceDiagnosticsBase: InferenceDiagnostics = {
     target: {
       attempted: true,
       matched: Boolean(top),
@@ -283,6 +283,112 @@ export async function generateRecipe(
     };
   }
 
+  if (!top) {
+    const classInventory = await discoverClassMethodsFn({
+      rootAbs: normalized.rootAbs,
+      ...(normalized.additionalSourceRootsAbs?.length
+        ? { additionalRootsAbs: normalized.additionalSourceRootsAbs }
+        : {}),
+      classHint: normalized.classHint,
+    });
+    const hasSingleEmptyClassMatch =
+      classInventory.matchMode === "exact" &&
+      classInventory.classes.length === 1 &&
+      classInventory.classes[0]?.methods.length === 0;
+    if (hasSingleEmptyClassMatch) {
+      const classMatch = classInventory.classes[0]!;
+      top = {
+        file: classMatch.file,
+        className: classMatch.className,
+        ...(classMatch.fqcn ? { fqcn: classMatch.fqcn } : {}),
+        methodName: normalized.methodHint,
+        reasons: ["class_inventory_exact_match", "method_bodies=0"],
+      };
+      inferenceDiagnosticsBase = {
+        ...inferenceDiagnosticsBase,
+        target: {
+          ...inferenceDiagnosticsBase.target,
+          matched: true,
+        },
+      };
+    } else {
+      const auth = buildUnknownTargetAuth();
+      const executionPlan = buildRecipeExecutionPlan({
+        decision: routingDecision,
+        auth,
+        actuationEnabled: normalized.actuationEnabled,
+        ...(typeof normalized.actuationReturnBoolean === "boolean"
+          ? { actuationReturnBoolean: normalized.actuationReturnBoolean }
+          : {}),
+        ...(normalized.actuationActuatorId
+          ? { actuationActuatorId: normalized.actuationActuatorId }
+          : {}),
+      });
+      const readiness = buildExecutionReadiness({
+        selectedMode: routingDecision.selectedMode,
+        lineTargetProvided: routingDecision.lineTargetProvided,
+        auth,
+        actuationEnabled: normalized.actuationEnabled,
+        ...(typeof normalized.actuationReturnBoolean === "boolean"
+          ? { actuationReturnBoolean: normalized.actuationReturnBoolean }
+          : {}),
+      });
+      const runNotes = buildRunNotes({
+        selectedMode: routingDecision.selectedMode,
+        ...(typeof normalized.lineHint === "number" ? { lineHint: normalized.lineHint } : {}),
+        auth,
+        executionPlan,
+        readiness: readiness.executionReadiness,
+      });
+      runNotes.push(
+        `inference_target=matched:${String(inferenceDiagnosticsBase.target.matched)} candidates:${inferenceDiagnosticsBase.target.candidateCount}`,
+      );
+      runNotes.push("inference_request=matched:false");
+      runNotes.push("failure_phase=target_inference");
+      runNotes.push("failure_reason=target_candidate_missing");
+      runNotes.push("synthesis_reason_code=target_candidate_missing");
+      runNotes.push("synthesis_failed_step=target_inference");
+      const attemptedStrategies = ["target_inference_exact_match", "class_inventory_exact_match"];
+      const evidence = [
+        `classHint=${normalized.classHint}`,
+        `methodHint=${normalized.methodHint}`,
+        `lineHint=${typeof normalized.lineHint === "number" ? String(normalized.lineHint) : "(none)"}`,
+        `candidateCount=${inferred.candidates.length}`,
+        `classMatchMode=${classInventory.matchMode}`,
+        `classMatchCount=${classInventory.classes.length}`,
+      ];
+      return {
+        requestCandidates: [],
+        executionPlan,
+        resultType: "report",
+        status: "target_not_inferred",
+        selectedMode: routingDecision.selectedMode,
+        lineTargetProvided: routingDecision.lineTargetProvided,
+        probeIntentRequested: routingDecision.probeIntentRequested,
+        executionReadiness: readiness.executionReadiness,
+        missingInputs: readiness.missingInputs,
+        nextAction:
+          "Refine classHint/methodHint to exact runtime identifiers (add lineHint for strict probe intent) and rerun probe_recipe_create.",
+        failurePhase: "target_inference",
+        failureReasonCode: "target_candidate_missing",
+        reasonCode: "target_candidate_missing",
+        failedStep: "target_inference",
+        attemptedStrategies,
+        evidence,
+        inferenceDiagnostics: inferenceDiagnosticsBase,
+        auth,
+        notes: runNotes.filter(
+          (note) =>
+            note.startsWith("execution_readiness=") ||
+            note.startsWith("inference_target=") ||
+            note.startsWith("inference_request=") ||
+            note.startsWith("failure_") ||
+            note.startsWith("synthesis_"),
+        ),
+      };
+    }
+  }
+
   const ambiguousCandidates = top
     ? selectAmbiguousCandidates({
         candidates: inferred.candidates,
@@ -362,97 +468,6 @@ export async function generateRecipe(
           matched: false,
         },
       },
-      auth,
-      notes: runNotes.filter(
-        (note) =>
-          note.startsWith("execution_readiness=") ||
-          note.startsWith("inference_target=") ||
-          note.startsWith("inference_request=") ||
-          note.startsWith("failure_") ||
-          note.startsWith("synthesis_"),
-      ),
-    };
-  }
-
-  if (!top) {
-    const auth = buildUnknownTargetAuth();
-    const executionPlan = buildRecipeExecutionPlan({
-      decision: routingDecision,
-      auth,
-      actuationEnabled: normalized.actuationEnabled,
-      ...(typeof normalized.actuationReturnBoolean === "boolean"
-        ? { actuationReturnBoolean: normalized.actuationReturnBoolean }
-        : {}),
-      ...(normalized.actuationActuatorId
-        ? { actuationActuatorId: normalized.actuationActuatorId }
-        : {}),
-    });
-    const readiness = buildExecutionReadiness({
-      selectedMode: routingDecision.selectedMode,
-      lineTargetProvided: routingDecision.lineTargetProvided,
-      auth,
-      actuationEnabled: normalized.actuationEnabled,
-      ...(typeof normalized.actuationReturnBoolean === "boolean"
-        ? { actuationReturnBoolean: normalized.actuationReturnBoolean }
-        : {}),
-    });
-    const runNotes = buildRunNotes({
-      selectedMode: routingDecision.selectedMode,
-      ...(typeof normalized.lineHint === "number" ? { lineHint: normalized.lineHint } : {}),
-      auth,
-      executionPlan,
-      readiness: readiness.executionReadiness,
-    });
-    runNotes.push(
-      `inference_target=matched:${String(inferenceDiagnosticsBase.target.matched)} candidates:${inferenceDiagnosticsBase.target.candidateCount}`,
-    );
-    runNotes.push("inference_request=matched:false");
-    runNotes.push("failure_phase=target_inference");
-    runNotes.push("failure_reason=target_candidate_missing");
-    runNotes.push("synthesis_reason_code=target_candidate_missing");
-    runNotes.push("synthesis_failed_step=target_inference");
-    const classInventory = await discoverClassMethodsFn({
-      rootAbs: normalized.rootAbs,
-      ...(normalized.additionalSourceRootsAbs?.length
-        ? { additionalRootsAbs: normalized.additionalSourceRootsAbs }
-        : {}),
-      classHint: normalized.classHint,
-    });
-    const hasSingleEmptyClassMatch =
-      classInventory.matchMode === "exact" &&
-      classInventory.classes.length === 1 &&
-      classInventory.classes[0]?.methods.length === 0;
-    const nextAction = hasSingleEmptyClassMatch
-      ? "Matched class has no method bodies in projectRootAbs. If methods are inherited, use parent module/source roots."
-      : "Refine classHint/methodHint to exact runtime identifiers (add lineHint for strict probe intent) and rerun probe_recipe_create.";
-    const attemptedStrategies = ["target_inference_exact_match", "class_inventory_exact_match"];
-    const evidence = [
-      `classHint=${normalized.classHint}`,
-      `methodHint=${normalized.methodHint}`,
-      `lineHint=${typeof normalized.lineHint === "number" ? String(normalized.lineHint) : "(none)"}`,
-      `candidateCount=${inferred.candidates.length}`,
-      `classMatchMode=${classInventory.matchMode}`,
-      `classMatchCount=${classInventory.classes.length}`,
-      ...(hasSingleEmptyClassMatch ? ["class_match=exact", "method_bodies=0"] : []),
-    ];
-    return {
-      requestCandidates: [],
-      executionPlan,
-      resultType: "report",
-      status: "target_not_inferred",
-      selectedMode: routingDecision.selectedMode,
-      lineTargetProvided: routingDecision.lineTargetProvided,
-      probeIntentRequested: routingDecision.probeIntentRequested,
-      executionReadiness: readiness.executionReadiness,
-      missingInputs: readiness.missingInputs,
-      nextAction,
-      failurePhase: "target_inference",
-      failureReasonCode: "target_candidate_missing",
-      reasonCode: "target_candidate_missing",
-      failedStep: "target_inference",
-      attemptedStrategies,
-      evidence,
-      inferenceDiagnostics: inferenceDiagnosticsBase,
       auth,
       notes: runNotes.filter(
         (note) =>

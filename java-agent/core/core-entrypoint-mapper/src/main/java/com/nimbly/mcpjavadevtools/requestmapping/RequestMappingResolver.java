@@ -115,13 +115,20 @@ public final class RequestMappingResolver {
             );
         }
 
-        MethodDeclaration primaryMethod = MethodSelector.findMethod(
-                primaryType,
-                request.methodHint,
-                request.lineHint,
-                -1
-        );
-        if (primaryMethod == null) {
+        MethodDeclaration primaryMethod = MethodSelector.findMethod(primaryType, request.methodHint, request.lineHint, -1);
+        List<MethodContext> methodContexts;
+        if (primaryMethod != null) {
+            methodContexts = MethodSelector.collectMethodContexts(primaryType, primaryMethod, index);
+        } else {
+            methodContexts = MethodSelector.collectMethodContextsByHint(
+                    primaryType,
+                    request.methodHint,
+                    request.lineHint,
+                    index
+            );
+        }
+
+        if (methodContexts.isEmpty()) {
             return failure(
                     "target_method_not_found",
                     "target_method_resolution",
@@ -150,7 +157,6 @@ public final class RequestMappingResolver {
             );
         }
 
-        List<MethodContext> methodContexts = MethodSelector.collectMethodContexts(primaryType, primaryMethod, index);
         for (MethodContext context : methodContexts) {
             for (MappingExtractor extractor : extractors) {
                 Optional<ResolvedMapping> resolved = extractor.resolve(context, index);
