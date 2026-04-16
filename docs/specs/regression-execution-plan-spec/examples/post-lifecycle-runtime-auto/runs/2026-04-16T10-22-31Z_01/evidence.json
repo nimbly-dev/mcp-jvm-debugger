@@ -1,0 +1,20 @@
+{
+  "targetResolution": [
+    {
+      "stepOrder": 1,
+      "fqcn": "com.example.social.post.app.controller.PostController",
+      "method": "createPost"
+    },
+    {
+      "stepOrder": 2,
+      "fqcn": "com.example.social.post.app.controller.PostController",
+      "method": "deletePost"
+    }
+  ],
+  "probe": {
+    "enabled": true,
+    "mode": "auto",
+    "status": "verified"
+  }
+}
+

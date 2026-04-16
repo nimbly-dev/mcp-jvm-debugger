@@ -1,0 +1,23 @@
+{
+  "status": "pass",
+  "startedAt": "2026-04-16T10:41:57Z",
+  "endedAt": "2026-04-16T10:42:03Z",
+  "preflight": {
+    "status": "ready"
+  },
+  "steps": [
+    {
+      "order": 1,
+      "id": "get_creator_digest",
+      "status": "pass",
+      "httpStatus": 200
+    },
+    {
+      "order": 2,
+      "id": "patch_missing_digest",
+      "status": "pass",
+      "httpStatus": 404
+    }
+  ]
+}
+

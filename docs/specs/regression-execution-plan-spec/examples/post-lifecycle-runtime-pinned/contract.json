@@ -1,0 +1,103 @@
+{
+  "targets": [
+    {
+      "type": "class_method",
+      "selectors": {
+        "fqcn": "com.example.social.post.app.controller.PostController",
+        "method": "createPost",
+        "signature": "(com.example.social.post.api.CreatePostRequest)",
+        "sourceRoot": "test/fixtures/spring-apps/social-platform/post-service/post-app"
+      },
+      "runtimeVerification": {
+        "strictProbeKey": "com.example.social.post.app.controller.PostController#createPost:118"
+      }
+    },
+    {
+      "type": "class_method",
+      "selectors": {
+        "fqcn": "com.example.social.post.app.controller.PostController",
+        "method": "updatePost",
+        "signature": "(java.lang.String,com.example.social.post.api.UpdatePostRequest)",
+        "sourceRoot": "test/fixtures/spring-apps/social-platform/post-service/post-app"
+      },
+      "runtimeVerification": {
+        "strictProbeKey": "com.example.social.post.app.controller.PostController#updatePost:154"
+      }
+    }
+  ],
+  "prerequisites": [
+    {
+      "key": "auth.bearer",
+      "required": true,
+      "secret": true
+    },
+    {
+      "key": "tenantId",
+      "required": true,
+      "secret": false
+    }
+  ],
+  "steps": [
+    {
+      "order": 1,
+      "id": "create_post",
+      "targetRef": 0,
+      "protocol": "http",
+      "transport": {
+        "method": "POST",
+        "path": "/api/v1/posts"
+      },
+      "inputs": {
+        "query.tenantId": "${tenantId}",
+        "bodyRef": "fixtures/post/create_post_minimal.json"
+      },
+      "extract": [
+        {
+          "from": "response.body.id",
+          "as": "postId"
+        }
+      ]
+    },
+    {
+      "order": 2,
+      "id": "update_post",
+      "targetRef": 1,
+      "protocol": "http",
+      "transport": {
+        "method": "PUT",
+        "path": "/api/v1/posts/${postId}"
+      },
+      "inputs": {
+        "query.tenantId": "${tenantId}",
+        "bodyRef": "fixtures/post/update_post_title_only.json"
+      }
+    }
+  ],
+  "expectations": [
+    {
+      "stepOrder": 1,
+      "type": "http_status",
+      "equals": 201
+    },
+    {
+      "stepOrder": 2,
+      "type": "http_status",
+      "equals": 200
+    },
+    {
+      "stepOrder": 1,
+      "type": "probe_hit",
+      "min": 1
+    },
+    {
+      "stepOrder": 2,
+      "type": "probe_hit",
+      "min": 1
+    },
+    {
+      "type": "outcome_status",
+      "equals": "pass"
+    }
+  ]
+}
+

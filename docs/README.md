@@ -1,5 +1,9 @@
 # Docs Index
 
+## Specs
+
+- Source of truth: `docs/specs/README.md`
+
 ## Data Fields
 
 - Source of truth: `docs/data-fields/README.md`
