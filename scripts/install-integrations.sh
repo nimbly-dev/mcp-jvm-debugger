@@ -38,7 +38,12 @@ EOF
 
 CLIENT="codex"
 SERVER_NAME="mcp-java-dev-tools"
-SKILL_NAMES_DEFAULT=("mcp-java-dev-tools-line-probe-run" "mcp-java-dev-tools-regression-suite" "mcp-java-dev-tools-issue-report")
+SKILL_NAMES_DEFAULT=(
+  "mcp-java-dev-tools-line-probe-run"
+  "mcp-java-dev-tools-regression-suite"
+  "mcp-java-dev-tools-regression-plan-crafter"
+  "mcp-java-dev-tools-issue-report"
+)
 SKILL_NAMES=("${SKILL_NAMES_DEFAULT[@]}")
 SKILL_NAME_OVERRIDE=0
 RETIRED_SKILL_NAME="mcp-java-dev-tools-repro-orchestration"

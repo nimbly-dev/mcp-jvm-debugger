@@ -13,6 +13,15 @@ Use this workflow for regression runs at controller scope, service scope, or who
 2. `service` (endpoints for one service/runtime)
 3. `api` (whole API surface for a runtime)
 
+## Using Crafted Plans
+
+If a persisted regression plan is requested, this skill consumes and executes it.
+
+1. Plan authoring/refinement must be done first with:
+   - `mcp-java-dev-tools-regression-plan-crafter`
+2. This skill executes/replays the crafted plan using existing MCP flow (no new MCP tool).
+3. If the plan is missing deterministic selectors or required context, fail closed and report exact missing fields.
+
 ## MCP-First Requirement
 
 1. Mandatory tools: `probe_check`, `project_context_validate`, `probe_recipe_create` (per endpoint or representative target), plus probe tools when probe verification is requested/available.

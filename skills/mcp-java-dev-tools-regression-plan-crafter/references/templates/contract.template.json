@@ -1,0 +1,62 @@
+{
+  "targets": [
+    {
+      "type": "class_method",
+      "selectors": {
+        "fqcn": "com.example.app.controller.ExampleController",
+        "method": "createExample",
+        "signature": "(com.example.api.CreateExampleRequest)",
+        "sourceRoot": "<module-source-root>"
+      }
+    }
+  ],
+  "prerequisites": [
+    {
+      "key": "tenantId",
+      "required": true,
+      "secret": false,
+      "default": "tenant-default"
+    },
+    {
+      "key": "auth.bearer",
+      "required": true,
+      "secret": true
+    }
+  ],
+  "steps": [
+    {
+      "order": 1,
+      "id": "create_entity",
+      "targetRef": 0,
+      "protocol": "http",
+      "transport": {
+        "http": {
+          "method": "POST",
+          "pathTemplate": "/api/v1/examples",
+          "query": {
+            "tenantId": "${tenantId}"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "name": "Example Name"
+          }
+        }
+      },
+      "extract": [
+        {
+          "from": "response.body.id",
+          "as": "exampleId"
+        }
+      ]
+    }
+  ],
+  "expectations": [
+    {
+      "stepOrder": 1,
+      "type": "outcome_status",
+      "equals": "pass"
+    }
+  ]
+}
