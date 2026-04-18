@@ -37,6 +37,12 @@ function resolveRepoRoot(startDirAbs: string): string {
 }
 
 export const repoRootAbs = resolveRepoRoot(__dirname);
+const repoPackageJson = JSON.parse(
+  fsSync.readFileSync(path.join(repoRootAbs, "package.json"), "utf8"),
+) as {
+  version?: string;
+};
+const repoVersion = typeof repoPackageJson.version === "string" ? repoPackageJson.version.trim() : "";
 export const socialPlatformRootAbs = path.join(
   repoRootAbs,
   "test",
@@ -131,6 +137,7 @@ async function resolveJarByPattern(args: {
   include: RegExp;
   exclude?: RegExp;
   label: string;
+  preferredVersion?: string;
 }): Promise<string> {
   let entries: string[];
   try {
@@ -147,13 +154,78 @@ async function resolveJarByPattern(args: {
   if (matches.length === 0) {
     throw new Error(`${args.label} not found in ${args.dirAbs}`);
   }
+
   if (matches.length > 1) {
-    throw new Error(
-      `${args.label} is ambiguous in ${args.dirAbs}: ${matches.join(", ")}`,
-    );
+    const preferredVersion = args.preferredVersion?.trim();
+    if (preferredVersion) {
+      const preferredMatches = matches.filter((entry) =>
+        entry.includes(`-${preferredVersion}-`) || entry.includes(`-${preferredVersion}.jar`),
+      );
+      if (preferredMatches.length === 1) {
+        return path.join(args.dirAbs, preferredMatches[0]!);
+      }
+      if (preferredMatches.length > 1) {
+        throw new Error(
+          `${args.label} preferred version is ambiguous in ${args.dirAbs}: ${preferredMatches.join(", ")}`,
+        );
+      }
+    }
+
+    type VersionedEntry = { entry: string; version: string };
+    const parsed = matches
+      .map((entry) => {
+        const versions = entry.match(/\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?/g);
+        const version = versions ? versions[versions.length - 1] : undefined;
+        if (!version) return undefined;
+        return { entry, version } as VersionedEntry;
+      })
+      .filter((candidate): candidate is VersionedEntry => typeof candidate !== "undefined");
+
+    if (parsed.length === matches.length) {
+      const sorted = [...parsed].sort((left, right) =>
+        compareSemanticVersions(right.version, left.version),
+      );
+      const best = sorted[0]!;
+      const second = sorted[1];
+      if (!second || compareSemanticVersions(best.version, second.version) !== 0) {
+        return path.join(args.dirAbs, best.entry);
+      }
+      throw new Error(
+        `${args.label} has multiple top-version candidates in ${args.dirAbs}: ${sorted
+          .filter((item) => compareSemanticVersions(item.version, best.version) === 0)
+          .map((item) => item.entry)
+          .join(", ")}`,
+      );
+    }
+
+    throw new Error(`${args.label} is ambiguous in ${args.dirAbs}: ${matches.join(", ")}`);
   }
 
   return path.join(args.dirAbs, matches[0]!);
+}
+
+function compareSemanticVersions(left: string, right: string): number {
+  const leftSplit = left.split("-", 2);
+  const rightSplit = right.split("-", 2);
+  const leftCore = leftSplit[0] ?? "";
+  const rightCore = rightSplit[0] ?? "";
+  const leftPre = leftSplit[1] ?? "";
+  const rightPre = rightSplit[1] ?? "";
+
+  const leftParts = leftCore.split(".").map((value) => Number.parseInt(value, 10));
+  const rightParts = rightCore.split(".").map((value) => Number.parseInt(value, 10));
+  for (let index = 0; index < 3; index += 1) {
+    const leftValue = leftParts[index] ?? 0;
+    const rightValue = rightParts[index] ?? 0;
+    if (leftValue !== rightValue) {
+      return leftValue - rightValue;
+    }
+  }
+
+  if (leftPre === rightPre) return 0;
+  if (leftPre.length === 0) return 1;
+  if (rightPre.length === 0) return -1;
+  return leftPre.localeCompare(rightPre);
 }
 
 async function waitFor(
@@ -259,6 +331,7 @@ export async function startPostAppWithAgent(args?: {
     dirAbs: agentTargetDirAbs,
     include: /^mcp-java-dev-tools-agent-.*-all\.jar$/,
     label: "java agent jar",
+    preferredVersion: repoVersion,
   });
   const postAppJarAbs = await resolveJarByPattern({
     dirAbs: postAppTargetDirAbs,
@@ -378,6 +451,7 @@ export async function resolveCoreEntrypointMapperJar(): Promise<string> {
     dirAbs: coreEntrypointMapperTargetDirAbs,
     include: /^mcp-java-dev-tools-core-entrypoint-mapper-.*-all\.jar$/,
     label: "core-entrypoint-mapper all jar",
+    preferredVersion: repoVersion,
   });
   await assertFileExists(jarAbs, "core-entrypoint-mapper all jar");
   return jarAbs;

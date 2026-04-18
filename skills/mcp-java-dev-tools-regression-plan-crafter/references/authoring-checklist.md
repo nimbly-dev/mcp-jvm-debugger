@@ -1,0 +1,35 @@
+# Craft Authoring Checklist
+
+Use this checklist before finalizing a crafted plan.
+
+## Determinism
+
+1. `targets[].selectors.fqcn` is present for every target.
+2. Multi-module ambiguity is disambiguated via `sourceRoot` and/or signature.
+3. `steps[].order` is unique and sequential from `1..N`.
+4. `steps[].protocol` maps to `steps[].transport.<protocol>`.
+
+## Safety
+
+1. No secrets persisted in defaults.
+2. Secret prerequisites are marked `secret=true`.
+3. No speculative placeholder values that can produce non-actionable failures.
+
+## Runtime Verification
+
+1. `verifyRuntime`/`pinStrictProbeKey` values match requested behavior.
+2. If pinning is enabled, strict key format is `FQCN#method:line`.
+
+## Consistency
+
+1. `plan.md` steps mirror `contract.json` steps.
+2. Step IDs and order match between human and machine artifacts.
+3. Expectations are measurable and deterministic.
+
+## Fail-Closed
+
+If any required field is missing or ambiguous, return blocked guidance with:
+
+1. exact missing/invalid fields
+2. deterministic reason code
+3. single next action
