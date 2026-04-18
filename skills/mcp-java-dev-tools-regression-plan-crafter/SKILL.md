@@ -7,6 +7,15 @@ description: "Craft deterministic regression execution plans under .mcpjvm/regre
 
 Use this skill to author or refine a persisted regression plan spec package before execution/replay.
 
+## Execution Mode
+
+This skill must run in two phases:
+
+1. `Research`
+2. `Craft`
+
+Do not skip `Research` when route/base path evidence is incomplete.
+
 ## Goal
 
 Produce a deterministic, fail-closed plan package:
@@ -41,12 +50,23 @@ If user input conflicts with these rules, fail closed and request clarification.
 
 ## Plan Authoring Workflow
 
-1. Collect target and scope
-2. Define prerequisites
-3. Define ordered steps
-4. Define expectations
-5. Generate `plan.md` with deterministic verbs
-6. Validate consistency and fail closed on ambiguity
+1. Research target and route facts
+2. Collect target and scope
+3. Define prerequisites
+4. Define ordered steps
+5. Define expectations
+6. Generate `plan.md` with deterministic verbs
+7. Validate consistency and fail closed on ambiguity
+
+### 0) Research target and route facts
+
+Before crafting, gather only provable facts from:
+
+1. source mappings
+2. runtime docs/contracts (for example OpenAPI), if available
+3. explicit user-provided inputs
+
+Record unresolved route/base-path items as missing context. Do not synthesize guessed prefixes.
 
 ### 1) Collect target and scope
 
@@ -155,6 +175,17 @@ Stop and return deterministic blocked guidance when:
 4. required context keys cannot be determined and no safe default exists
 5. pinned strict probe key is required but invalid/missing
 6. user asks to persist secrets as defaults
+7. base path/prefix is not proven but required to produce executable route steps
+
+## Base Path Policy (No Assumptions)
+
+1. Never assume or inject a default route prefix/base path.
+2. Set base path only when:
+   - user provided it explicitly, or
+   - it is proven by source/runtime evidence.
+3. If base path is unproven:
+   - leave it unset in crafted plan fields,
+   - return deterministic `needs_user_input` guidance for the missing key.
 
 ## Output Style
 
