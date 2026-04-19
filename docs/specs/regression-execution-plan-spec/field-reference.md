@@ -9,11 +9,11 @@
       metadata.json
       contract.json
       plan.md
-      runs/
-        <run_id>/
-          context.resolved.json
-          execution.result.json
-          evidence.json
+  runs/
+    <run_id>/
+      context.resolved.json
+      execution.result.json
+      evidence.json
 ```
 
 ## `metadata.json`
@@ -92,7 +92,7 @@ Expected style:
 - allowed action verbs only
 - concise, deterministic statements
 
-## `runs/<run_id>/context.resolved.json`
+## `.mcpjvm/runs/<run_id>/context.resolved.json`
 
 Resolved run-time context for a specific run.
 
@@ -102,7 +102,7 @@ Examples:
 - resolved non-secret keys (`tenantId`)
 - metadata timestamps
 
-## `runs/<run_id>/execution.result.json`
+## `.mcpjvm/runs/<run_id>/execution.result.json`
 
 Canonical run result for a specific run.
 
@@ -114,7 +114,7 @@ Expected fields:
 - per-step result list
 - failure reason when applicable
 
-## `runs/<run_id>/evidence.json`
+## `.mcpjvm/runs/<run_id>/evidence.json`
 
 Supporting evidence for result interpretation.
 

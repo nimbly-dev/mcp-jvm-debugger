@@ -104,4 +104,5 @@ test("regression suite skill consumes crafted plans and delegates authoring to c
   const text = readUtf8(skillPath);
   assert.match(text, /Using Crafted Plans/);
   assert.match(text, /mcp-java-dev-tools-regression-plan-crafter/);
+  assert.match(text, /\.mcpjvm\/runs\/<run_id>/);
 });
