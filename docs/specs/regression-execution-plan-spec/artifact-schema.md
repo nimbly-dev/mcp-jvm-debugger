@@ -3,7 +3,7 @@
 This document is normative for run artifacts written under:
 
 ```text
-.mcpjvm/regression/<regression_name>/runs/<run_id>/
+.mcpjvm/runs/<run_id>/
 ```
 
 Terms:
@@ -95,6 +95,7 @@ Purpose: enough evidence to diagnose run outcome without replay.
 Required fields:
 
 - `targetResolution` (array)
+- `planRef` (object with `name` and/or `path`)
 
 Recommended fields:
 

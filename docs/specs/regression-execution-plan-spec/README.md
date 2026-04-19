@@ -15,7 +15,7 @@ Each regression plan lives under:
 | `metadata.json` | Plan-level execution settings |
 | `contract.json` | Authoritative machine contract |
 | `plan.md` | Human-readable execution plan |
-| `runs/<run_id>/...` | Immutable outputs for each run |
+| `.mcpjvm/runs/<run_id>/...` | Immutable outputs for each run (global run history) |
 | `artifact-schema.md` | Normative run artifact contract (`MUST/SHOULD/MAY`) |
 
 
@@ -56,3 +56,8 @@ Plans use a fixed vocabulary to keep steps unambiguous and machine-parseable.
 ## Execution Order
 
 Steps are numbered `1..N` and executed strictly in listed order. The orchestrator does not reorder steps implicitly — what you write is what runs.
+Run artifacts are persisted globally under:
+
+```text
+.mcpjvm/runs/<run_id>/
+```

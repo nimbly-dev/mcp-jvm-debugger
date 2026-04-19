@@ -21,6 +21,10 @@ If a persisted regression plan is requested, this skill consumes and executes it
    - `mcp-java-dev-tools-regression-plan-crafter`
 2. This skill executes/replays the crafted plan using existing MCP flow (no new MCP tool).
 3. If the plan is missing deterministic selectors or required context, fail closed and report exact missing fields.
+4. Persist run artifacts automatically after each suite execution under:
+   - `.mcpjvm/runs/<run_id>/context.resolved.json`
+   - `.mcpjvm/runs/<run_id>/execution.result.json`
+   - `.mcpjvm/runs/<run_id>/evidence.json`
 
 ## MCP-First Requirement
 
