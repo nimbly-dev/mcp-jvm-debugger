@@ -165,26 +165,57 @@ public final class ProbeHttpServer {
 
       ProbeHttpRequests.ActuateRequest request =
           ProbeHttpJson.readBodyJson(exchange.getRequestBody(), ProbeHttpRequests.ActuateRequest.class);
-      String mode = request.mode();
+      String action = request.action() == null ? "" : request.action().trim().toLowerCase();
+      String sessionId = request.sessionId() == null ? "" : request.sessionId().trim();
       String actuatorId = request.actuatorId();
-      String targetKey = request.targetKey();
+      String targetKey = request.targetKey() == null ? "" : request.targetKey().trim();
       Boolean returnBoolean = request.returnBoolean();
+      Long ttlMs = request.ttlMs();
 
-      ActuationState current = ProbeRuntime.actuationState();
-      String effectiveMode = (mode == null || mode.isBlank()) ? current.mode() : mode;
-      String effectiveActuatorId = actuatorId == null ? current.actuatorId() : actuatorId;
-      String effectiveTargetKey = targetKey == null ? current.targetKey() : targetKey;
-      boolean effectiveReturnBoolean = returnBoolean == null
-          ? current.returnBoolean()
-          : returnBoolean;
+      if (sessionId.isBlank()) {
+        ProbeHttpJson.writeJson(exchange, 400, new ProbeHttpPayloads.ErrorEnvelope("missing_session_id", null));
+        return;
+      }
+      if (!"arm".equals(action) && !"disarm".equals(action)) {
+        ProbeHttpJson.writeJson(exchange, 400, new ProbeHttpPayloads.ErrorEnvelope("invalid_action", null));
+        return;
+      }
 
-      ProbeRuntime.configure(
-          effectiveMode,
-          effectiveActuatorId,
-          effectiveTargetKey,
-          effectiveReturnBoolean
-      );
-      ActuationState updated = ProbeRuntime.actuationState();
+      ActuationState updated;
+      if ("disarm".equals(action)) {
+        if (!targetKey.isBlank() || returnBoolean != null || ttlMs != null) {
+          ProbeHttpJson.writeJson(exchange, 400, new ProbeHttpPayloads.ErrorEnvelope("disarm_fields_not_allowed", null));
+          return;
+        }
+        updated = ProbeRuntime.disarmSession(sessionId);
+      } else {
+        if (targetKey.isBlank() || returnBoolean == null || ttlMs == null) {
+          ProbeHttpJson.writeJson(exchange, 400, new ProbeHttpPayloads.ErrorEnvelope("arm_fields_required", null));
+          return;
+        }
+        if (!ProbeRuntime.isLineKey(targetKey)) {
+          ProbeHttpJson.writeJson(exchange, 400, new ProbeHttpPayloads.ErrorEnvelope("invalid_target_key", null));
+          return;
+        }
+        if (ttlMs < ProbeRuntime.minTtlMs() || ttlMs > ProbeRuntime.maxTtlMs()) {
+          ProbeHttpJson.writeJson(
+              exchange,
+              400,
+              new ProbeHttpPayloads.ErrorEnvelope(
+                  "ttl_out_of_range[" + ProbeRuntime.minTtlMs() + "," + ProbeRuntime.maxTtlMs() + "]",
+                  null
+              )
+          );
+          return;
+        }
+        updated = ProbeRuntime.armSession(
+            sessionId,
+            actuatorId,
+            targetKey,
+            returnBoolean,
+            ttlMs
+        );
+      }
 
       ProbeHttpJson.writeJson(
           exchange,
@@ -192,10 +223,15 @@ public final class ProbeHttpServer {
           new ProbeHttpPayloads.ActuateEnvelope(
               CONTRACT_VERSION,
               true,
+              action,
               updated.mode(),
+              updated.sessionId(),
               updated.actuatorId(),
               updated.targetKey(),
-              updated.returnBoolean()
+              updated.returnBoolean(),
+              ttlMs,
+              updated.expiresAtEpoch(),
+              updated.scopeState()
           )
       );
     }

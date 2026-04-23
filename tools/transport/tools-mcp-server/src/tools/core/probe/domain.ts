@@ -17,10 +17,12 @@ export type ProbeDomainConfig = {
 
 export type ProbeEnableInput = {
   baseUrl?: string | undefined;
-  mode?: "observe" | "actuate" | undefined;
+  action: "arm" | "disarm";
+  sessionId: string;
   actuatorId?: string | undefined;
   targetKey?: string | undefined;
   returnBoolean?: boolean | undefined;
+  ttlMs?: number | undefined;
   timeoutMs?: number | undefined;
 };
 
@@ -62,11 +64,13 @@ export function createProbeDomain(cfg: ProbeDomainConfig) {
       const args: Parameters<typeof probeActuateUtil>[0] = {
         baseUrl: input.baseUrl ?? cfg.probeBaseUrl,
         actuatePath: cfg.probeActuatePath,
+        action: input.action,
+        sessionId: input.sessionId,
       };
-      if (typeof input.mode === "string") args.mode = input.mode;
       if (typeof input.actuatorId === "string") args.actuatorId = input.actuatorId;
       if (typeof input.targetKey === "string") args.targetKey = input.targetKey;
       if (typeof input.returnBoolean === "boolean") args.returnBoolean = input.returnBoolean;
+      if (typeof input.ttlMs === "number") args.ttlMs = input.ttlMs;
       if (typeof input.timeoutMs === "number") args.timeoutMs = input.timeoutMs;
       return await probeActuateUtil(args);
     },

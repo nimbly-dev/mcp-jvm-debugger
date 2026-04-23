@@ -45,10 +45,7 @@ public final class ProbeAgent {
       System.err.println("[probe-agent] reset path:  /__probe/reset");
       System.err.println("[probe-agent] actuate path:/__probe/actuate");
       System.err.println("[probe-agent] capture path:/__probe/capture?captureId=...");
-      System.err.println("[probe-agent] mode: " + cfg.mode);
-      System.err.println("[probe-agent] actuatorId: " + (cfg.actuatorId == null || cfg.actuatorId.isEmpty() ? "(none)" : cfg.actuatorId));
-      System.err.println("[probe-agent] actuateTargetKey: " + (cfg.actuateTargetKey == null || cfg.actuateTargetKey.isEmpty() ? "(none)" : cfg.actuateTargetKey));
-      System.err.println("[probe-agent] actuateReturnBoolean: " + cfg.actuateReturnBoolean);
+      System.err.println("[probe-agent] mode: observe (runtime-wide actuation retired; use session-scoped probe_enable)");
       System.err.println("[probe-agent] captureEnabled: " + cfg.captureEnabled);
       System.err.println("[probe-agent] captureMaxKeys: " + cfg.captureMaxKeys);
       System.err.println("[probe-agent] captureMaxArgs: " + cfg.captureMaxArgs);

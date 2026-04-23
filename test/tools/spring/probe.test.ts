@@ -707,10 +707,13 @@ test("probe_get_status rejects conflicting or missing selectors", async () => {
   );
 });
 
-test("probe_enable actuation mode requires strict line target key", async () => {
+test("probe_enable arm requires strict line target key", async () => {
   const out = await probeActuate({
-    mode: "actuate",
+    action: "arm",
+    sessionId: "test-session",
     targetKey: "com.example.social.post.app.controller.PostController#updatePost",
+    returnBoolean: true,
+    ttlMs: 10_000,
     baseUrl: "http://127.0.0.1:9191",
     actuatePath: "/__probe/actuate",
   });

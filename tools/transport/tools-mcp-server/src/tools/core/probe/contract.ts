@@ -10,7 +10,7 @@ export const PROBE_TOOLS = {
   enable: {
     name: "probe_enable",
     description:
-      "Dynamically arm/disarm line-branch actuation without JVM restart. In actuate mode, targetKey must be fully.qualified.Class#method:line and returnBoolean controls branch decision (true=taken, false=fallthrough). Use mode=observe to disarm.",
+      "Session-scoped branch actuation without JVM restart. Use action=arm with sessionId,targetKey,returnBoolean,ttlMs. Use action=disarm with sessionId. Runtime-wide global actuation is not supported.",
     inputSchema: ProbeActuateInputSchema,
   },
   getCapture: {

@@ -207,9 +207,11 @@ test("java-agent IT: actuate endpoint rejects unauthorized requests when token i
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        mode: "actuate",
+        action: "arm",
+        sessionId: "java-agent-auth-it",
         targetKey: "com.example.social.post.app.service.PostService#updatePost:1",
         returnBoolean: true,
+        ttlMs: 10_000,
       }),
     });
     assert.equal(unauthorized.status, 401);
@@ -221,7 +223,8 @@ test("java-agent IT: actuate endpoint rejects unauthorized requests when token i
         authorization: "Bearer fixture-actuate-secret",
       },
       body: JSON.stringify({
-        mode: "observe",
+        action: "disarm",
+        sessionId: "java-agent-auth-it",
       }),
     });
     assert.equal(authorized.status, 200);

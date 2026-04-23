@@ -9,5 +9,12 @@ public final class ProbeHttpRequests {
 
   public record ResetRequest(String key, List<String> keys, String className) {}
 
-  public record ActuateRequest(String mode, String actuatorId, String targetKey, Boolean returnBoolean) {}
+  public record ActuateRequest(
+      String action,
+      String sessionId,
+      String actuatorId,
+      String targetKey,
+      Boolean returnBoolean,
+      Long ttlMs
+  ) {}
 }

@@ -5,22 +5,27 @@ export const ProbeActuateInputSchema = {
     .string()
     .optional()
     .describe("Override probe base URL (default from MCP_PROBE_BASE_URL)."),
-  mode: z
-    .enum(["observe", "actuate"])
-    .optional()
-    .describe("Runtime probe mode. Use 'observe' to disarm actuation."),
+  action: z
+    .enum(["arm", "disarm"])
+    .describe("Session-scoped actuation action."),
+  sessionId: z
+    .string()
+    .min(1)
+    .describe("Required actuation session identifier."),
   actuatorId: z.string().optional().describe("Optional actuator identifier for tracing/auditing."),
   targetKey: z
     .string()
     .optional()
-    .describe(
-      "Target line key for branch actuation in strict mode, e.g. fully.qualified.Class#method:line.",
-    ),
+    .describe("Required for action='arm'. Strict line key fully.qualified.Class#method:line."),
   returnBoolean: z
     .boolean()
     .optional()
-    .describe(
-      "Branch decision for target conditional at targetKey: true=force jump/taken, false=force fallthrough.",
-    ),
+    .describe("Required for action='arm'. true=force taken, false=force fallthrough."),
+  ttlMs: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Required for action='arm'. Session TTL in milliseconds."),
   timeoutMs: z.number().int().positive().optional(),
 } as const;
