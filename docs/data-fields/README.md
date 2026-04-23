@@ -203,7 +203,14 @@ examples:
 | fieldName | fieldDesc | toolUsedBy | required | exampleValue |
 | --- | --- | --- | --- | --- |
 | `request` | Actuation request envelope sent to probe endpoint. | `probe_enable` | true | `{"url":"http://127.0.0.1:9191/__probe/actuate"}` |
-| `response` | Raw endpoint response payload. | `probe_enable` | true | `{"status":200,"json":{"mode":"actuate"}}` |
+| `request.body.action` | Session actuation action (`arm` or `disarm`). | `probe_enable` | true | `"arm"` |
+| `request.body.sessionId` | Required actuation session identifier. | `probe_enable` | true | `"regression-run-42"` |
+| `request.body.targetKey` | Required strict line key for `action=arm`. | `probe_enable` | false | `"com.example.Catalog#save:88"` |
+| `request.body.returnBoolean` | Required branch decision for `action=arm`. | `probe_enable` | false | `true` |
+| `request.body.ttlMs` | Required session TTL for `action=arm`. | `probe_enable` | false | `15000` |
+| `response` | Raw endpoint response payload. | `probe_enable` | true | `{"status":200,"json":{"action":"arm","scopeState":"armed"}}` |
+| `response.json.scopeState` | Session scope state (`armed`, `expired`, `disarmed`). | `probe_enable` | false | `"armed"` |
+| `response.json.expiresAtEpoch` | Expiry timestamp for armed sessions. | `probe_enable` | false | `1773318672847` |
 
 ## probe_get_status
 
@@ -218,7 +225,10 @@ examples:
 | `response.json.capturePreview` | Compact runtime preview metadata from Java agent (`available`, `captureId`, timestamp, optional path list). | `probe_get_status` | false | `{"available":true,"captureId":"abc123"}` |
 | `response.json.capturePreview.capturedAtEpoch` | Capture preview Unix-epoch timestamp in JVM host wall-clock milliseconds. | `probe_get_status` | false | `1739671200456` |
 | `response.json.capturePreview.executionPaths` | Optional execution-path frames captured at runtime when `MCP_PROBE_INCLUDE_EXECUTION_PATHS=true`. | `probe_get_status` | false | `["CatalogController.listCatalogShoes()#42"]` |
-| `response.json.runtime` | Runtime actuation/observe mode payload. | `probe_get_status` | false | `{"mode":"observe"}` |
+| `response.json.runtime` | Runtime observe/session-actuation payload. | `probe_get_status` | false | `{"mode":"observe","activeSessionCount":0}` |
+| `response.json.runtime.sessionId` | Representative active session id when actuation is armed. | `probe_get_status` | false | `"regression-run-42"` |
+| `response.json.runtime.scopeState` | Runtime scope state snapshot (`armed` or `disarmed`). | `probe_get_status` | false | `"disarmed"` |
+| `response.json.runtime.activeSessionCount` | Number of active actuation sessions after TTL pruning. | `probe_get_status` | false | `1` |
 | `response.json.runtime.appPort.value` | Runtime application port hint when inferable (`null` when unknown). | `probe_get_status` | false | `8082` |
 | `response.json.runtime.appPort.source` | Source used to infer app port hint. | `probe_get_status` | false | `"system_property:server.port"` |
 | `result` | Guidance block when runtime alignment fails. | `probe_get_status` | false | `{"reason":"invalid_line_target","actionCode":"runtime_not_aligned"}` |

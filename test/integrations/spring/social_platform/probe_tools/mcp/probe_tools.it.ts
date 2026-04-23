@@ -119,6 +119,36 @@ async function resolveFixtureActuationKey(): Promise<string> {
   });
 }
 
+const ACTUATION_TTL_MS = 15_000;
+
+async function armActuation(args: {
+  sessionId: string;
+  targetKey: string;
+  returnBoolean: boolean;
+  actuatorId?: string;
+}) {
+  if (!runtime) throw new Error("post-app runtime was not started");
+  return await callTool("probe_enable", {
+    baseUrl: runtime.probeBaseUrl,
+    action: "arm",
+    sessionId: args.sessionId,
+    targetKey: args.targetKey,
+    returnBoolean: args.returnBoolean,
+    ttlMs: ACTUATION_TTL_MS,
+    actuatorId: args.actuatorId ?? "social-platform-it",
+  });
+}
+
+async function disarmActuation(sessionId: string) {
+  if (!runtime) throw new Error("post-app runtime was not started");
+  return await callTool("probe_enable", {
+    baseUrl: runtime.probeBaseUrl,
+    action: "disarm",
+    sessionId,
+    actuatorId: "social-platform-it",
+  });
+}
+
 test.before(async () => {
   runtime = await startPostAppWithAgent();
   mcp = await startMcpClient({
@@ -219,11 +249,7 @@ test("mcp IT: happy-path covers regression, probe status, capture, class invento
   assert.equal(recipe.structuredContent.requestCandidates[0].path, "/api/v1/posts/1");
   assert.equal(recipe.structuredContent.trigger.path, "/api/v1/posts/1");
 
-  const observe = await callTool("probe_enable", {
-    baseUrl: runtime.probeBaseUrl,
-    mode: "observe",
-    actuatorId: "social-platform-it",
-  });
+  const observe = await disarmActuation("mcp-happy-path");
   assert.equal(observe.structuredContent.response.status, 200);
   assert.equal(observe.structuredContent.response.json.mode, "observe");
 
@@ -339,19 +365,13 @@ test("mcp IT: actuate forces deterministic fixture branch outcomes for the same 
 
   const key = await resolveFixtureActuationKey();
 
-  await callTool("probe_enable", {
-    baseUrl: runtime.probeBaseUrl,
-    mode: "observe",
-    actuatorId: "social-platform-it",
-  });
+  await disarmActuation("mcp-actuate-branch");
 
   try {
-    await callTool("probe_enable", {
-      baseUrl: runtime.probeBaseUrl,
-      mode: "actuate",
+    await armActuation({
+      sessionId: "mcp-actuate-branch",
       targetKey: key,
       returnBoolean: false,
-      actuatorId: "social-platform-it",
     });
     await callTool("probe_reset", {
       key,
@@ -376,12 +396,10 @@ test("mcp IT: actuate forces deterministic fixture branch outcomes for the same 
     });
     assert.equal(deniedWait.structuredContent.result.hit, true);
 
-    await callTool("probe_enable", {
-      baseUrl: runtime.probeBaseUrl,
-      mode: "actuate",
+    await armActuation({
+      sessionId: "mcp-actuate-branch",
       targetKey: key,
       returnBoolean: true,
-      actuatorId: "social-platform-it",
     });
     await callTool("probe_reset", {
       key,
@@ -410,11 +428,7 @@ test("mcp IT: actuate forces deterministic fixture branch outcomes for the same 
     assert.equal(allowedWait.structuredContent.result.hit, true);
     assert.equal(allowedWait.structuredContent.result.inline, true);
   } finally {
-    await callTool("probe_enable", {
-      baseUrl: runtime.probeBaseUrl,
-      mode: "observe",
-      actuatorId: "social-platform-it",
-    });
+    await disarmActuation("mcp-actuate-branch");
   }
 });
 
@@ -431,12 +445,10 @@ test("mcp IT: actuate with unresolved strict line target fails closed during res
     line: declarationLine,
   });
 
-  await callTool("probe_enable", {
-    baseUrl: runtime.probeBaseUrl,
-    mode: "actuate",
+  await armActuation({
+    sessionId: "mcp-invalid-line",
     targetKey: invalidLineKey,
     returnBoolean: true,
-    actuatorId: "social-platform-it",
   });
 
   const invalidReset = await callTool("probe_reset", {
@@ -455,11 +467,7 @@ test("mcp IT: actuate with unresolved strict line target fails closed during res
   assert.equal(invalidWait.structuredContent.result.reason, "invalid_line_target");
   assert.equal(invalidWait.structuredContent.result.actionCode, "runtime_not_aligned");
 
-  await callTool("probe_enable", {
-    baseUrl: runtime.probeBaseUrl,
-    mode: "observe",
-    actuatorId: "social-platform-it",
-  });
+  await disarmActuation("mcp-invalid-line");
 
   const check = await callTool("probe_check", {
     baseUrl: runtime.probeBaseUrl,
@@ -468,42 +476,25 @@ test("mcp IT: actuate with unresolved strict line target fails closed during res
   assert.equal(check.structuredContent.checks.status.json.runtime.mode, "observe");
 });
 
-test("mcp IT: actuate without returnBoolean keeps default false branch decision", async () => {
+test("mcp IT: arm actuation without returnBoolean fails closed", async () => {
   if (!runtime) throw new Error("post-app runtime was not started");
 
   const key = await resolveFixtureActuationKey();
 
-  await callTool("probe_enable", {
-    baseUrl: runtime.probeBaseUrl,
-    mode: "observe",
-    actuatorId: "social-platform-it",
-  });
+  await disarmActuation("mcp-return-bool-required");
 
   const armed = await callTool("probe_enable", {
     baseUrl: runtime.probeBaseUrl,
-    mode: "actuate",
+    action: "arm",
+    sessionId: "mcp-return-bool-required",
     targetKey: key,
+    ttlMs: ACTUATION_TTL_MS,
     actuatorId: "social-platform-it",
   });
-  assert.equal(armed.structuredContent.response.status, 200);
-  assert.equal(armed.structuredContent.response.json.returnBoolean, false);
+  assert.equal(armed.structuredContent.result.actuated, false);
+  assert.equal(armed.structuredContent.result.reasonCode, "return_boolean_required");
 
-  await callTool("probe_reset", {
-    key,
-    baseUrl: runtime.probeBaseUrl,
-  });
-  const response = await executeUpdatePostAs({
-    token: "alice-token",
-    runAsUser: "alice",
-    content: "Actuate without explicit returnBoolean.",
-  });
-  assert.equal(response.status, 409);
-
-  await callTool("probe_enable", {
-    baseUrl: runtime.probeBaseUrl,
-    mode: "observe",
-    actuatorId: "social-platform-it",
-  });
+  await disarmActuation("mcp-return-bool-required");
 });
 
 test("mcp IT: fail-closed paths cover invalid project roots, bad recipe hints, invalid strict lines, and invalid actuation keys", async () => {
@@ -553,9 +544,11 @@ test("mcp IT: fail-closed paths cover invalid project roots, bad recipe hints, i
 
   const invalidEnable = await callTool("probe_enable", {
     baseUrl: runtime.probeBaseUrl,
-    mode: "actuate",
+    action: "arm",
+    sessionId: "mcp-invalid-enable",
     targetKey: `${postControllerFqcn}#updatePost`,
     returnBoolean: true,
+    ttlMs: ACTUATION_TTL_MS,
   });
   assert.equal(invalidEnable.structuredContent.result.actuated, false);
   assert.equal(invalidEnable.structuredContent.result.reason, "line_key_required");

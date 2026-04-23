@@ -71,10 +71,15 @@ public final class ProbeHttpPayloads {
   public record ActuateEnvelope(
       String contractVersion,
       boolean ok,
+      String action,
       String mode,
+      String sessionId,
       String actuatorId,
       String targetKey,
-      boolean returnBoolean
+      Boolean returnBoolean,
+      Long ttlMs,
+      Long expiresAtEpoch,
+      String scopeState
   ) {}
 
   public record CaptureEnvelope(
@@ -120,9 +125,13 @@ public final class ProbeHttpPayloads {
 
   public record RuntimePayload(
       String mode,
+      String sessionId,
       String actuatorId,
       String actuateTargetKey,
-      boolean actuateReturnBoolean,
+      Boolean actuateReturnBoolean,
+      Long expiresAtEpoch,
+      String scopeState,
+      int activeSessionCount,
       long serverEpoch,
       RuntimeStringSignalPayload applicationType,
       RuntimePortSignalPayload appPort

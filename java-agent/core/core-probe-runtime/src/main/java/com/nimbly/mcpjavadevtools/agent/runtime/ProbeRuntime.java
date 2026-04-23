@@ -4,8 +4,10 @@ import com.nimbly.mcpjavadevtools.agent.capture.ProbeCaptureStore;
 import com.nimbly.mcpjavadevtools.agent.runtime.model.ActuationState;
 import com.nimbly.mcpjavadevtools.agent.runtime.model.KeyStatus;
 import com.nimbly.mcpjavadevtools.agent.runtime.model.RuntimeState;
+import com.nimbly.mcpjavadevtools.agent.runtime.model.SessionActuation;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -18,11 +20,11 @@ public final class ProbeRuntime {
   private static final ConcurrentHashMap<String, AtomicLong> LAST_HIT_EPOCH_MS = new ConcurrentHashMap<>();
   private static final ConcurrentHashMap<String, LineTable> RESOLVABLE_LINES_BY_METHOD =
       new ConcurrentHashMap<>();
+  private static final ConcurrentHashMap<String, SessionActuation> SESSION_ACTUATIONS =
+      new ConcurrentHashMap<>();
 
-  private static volatile String MODE = "observe";
-  private static volatile String ACTUATOR_ID = "";
-  private static volatile String ACTUATE_TARGET_KEY = "";
-  private static volatile boolean ACTUATE_RETURN_BOOLEAN = false;
+  private static final long MIN_TTL_MS = 1_000L;
+  private static final long MAX_TTL_MS = 300_000L;
 
   private ProbeRuntime() {}
 
@@ -32,19 +34,90 @@ public final class ProbeRuntime {
       String actuateTargetKey,
       boolean actuateReturnBoolean
   ) {
-    String m = (mode == null || mode.isBlank()) ? "observe" : mode.trim().toLowerCase();
-    if (!"actuate".equals(m)) {
-      MODE = "observe";
-      ACTUATOR_ID = "";
-      ACTUATE_TARGET_KEY = "";
-      ACTUATE_RETURN_BOOLEAN = false;
-      return;
-    }
+    // Pre-1.0 breaking behavior: runtime-wide actuation is retired.
+    // Startup configuration only resets to safe observe semantics.
+    SESSION_ACTUATIONS.clear();
+  }
 
-    MODE = "actuate";
-    ACTUATOR_ID = (actuatorId == null) ? "" : actuatorId.trim();
-    ACTUATE_TARGET_KEY = (actuateTargetKey == null) ? "" : actuateTargetKey.trim();
-    ACTUATE_RETURN_BOOLEAN = actuateReturnBoolean;
+  public static ActuationState armSession(
+      String sessionId,
+      String actuatorId,
+      String targetKey,
+      boolean returnBoolean,
+      long ttlMs
+  ) {
+    long now = System.currentTimeMillis();
+    long boundedTtlMs = clampTtlMs(ttlMs);
+    SessionActuation sessionActuation = new SessionActuation(
+        sanitize(sessionId),
+        sanitize(actuatorId),
+        sanitize(targetKey),
+        returnBoolean,
+        now + boundedTtlMs
+    );
+    SESSION_ACTUATIONS.put(sessionActuation.sessionId(), sessionActuation);
+    return sessionState(sessionActuation.sessionId(), now);
+  }
+
+  public static ActuationState disarmSession(String sessionId) {
+    long now = System.currentTimeMillis();
+    String normalizedSessionId = sanitize(sessionId);
+    SESSION_ACTUATIONS.remove(normalizedSessionId);
+    return new ActuationState(
+        "observe",
+        normalizedSessionId,
+        "",
+        "",
+        null,
+        null,
+        "disarmed",
+        activeSessionCount(now)
+    );
+  }
+
+  public static ActuationState sessionState(String sessionId) {
+    return sessionState(sessionId, System.currentTimeMillis());
+  }
+
+  private static ActuationState sessionState(String sessionId, long now) {
+    String normalizedSessionId = sanitize(sessionId);
+    pruneExpiredSessions(now);
+    SessionActuation session = SESSION_ACTUATIONS.get(normalizedSessionId);
+    if (session == null) {
+      return new ActuationState(
+          "observe",
+          normalizedSessionId,
+          "",
+          "",
+          null,
+          null,
+          "disarmed",
+          activeSessionCount(now)
+      );
+    }
+    if (session.isExpired(now)) {
+      SESSION_ACTUATIONS.remove(normalizedSessionId, session);
+      return new ActuationState(
+          "observe",
+          normalizedSessionId,
+          session.actuatorId(),
+          session.targetKey(),
+          session.returnBoolean(),
+          session.expiresAtEpoch(),
+          "expired",
+          activeSessionCount(now)
+      );
+    }
+    return new ActuationState(
+        "actuate",
+        session.sessionId(),
+        session.actuatorId(),
+        session.targetKey(),
+        session.returnBoolean(),
+        session.expiresAtEpoch(),
+        "armed",
+        activeSessionCount(now)
+    );
   }
 
   public static void configureCapture(
@@ -140,7 +213,32 @@ public final class ProbeRuntime {
   }
 
   public static ActuationState actuationState() {
-    return new ActuationState(MODE, ACTUATOR_ID, ACTUATE_TARGET_KEY, ACTUATE_RETURN_BOOLEAN);
+    long now = System.currentTimeMillis();
+    List<SessionActuation> active = activeSessions(now);
+    if (active.isEmpty()) {
+      return new ActuationState(
+          "observe",
+          "",
+          "",
+          "",
+          null,
+          null,
+          "disarmed",
+          0
+      );
+    }
+    active.sort(Comparator.comparing(SessionActuation::sessionId));
+    SessionActuation selected = active.get(0);
+    return new ActuationState(
+        "actuate",
+        selected.sessionId(),
+        selected.actuatorId(),
+        selected.targetKey(),
+        selected.returnBoolean(),
+        selected.expiresAtEpoch(),
+        "armed",
+        active.size()
+    );
   }
 
   public static RuntimeState runtimeState() {
@@ -167,18 +265,18 @@ public final class ProbeRuntime {
       String methodName,
       int lineNumber
   ) {
-    if (!"actuate".equals(MODE)) return -1;
-    if (ACTUATE_TARGET_KEY == null || ACTUATE_TARGET_KEY.isBlank()) return -1;
     if (dottedClassName == null || dottedClassName.isBlank() || methodName == null || methodName.isBlank()) {
       return -1;
     }
     if (lineNumber <= 0) return -1;
 
     String key = dottedClassName + "#" + methodName + ":" + lineNumber;
-    if (!ACTUATE_TARGET_KEY.equals(key)) return -1;
+    List<SessionActuation> matches = activeSessionsForTargetKey(key, System.currentTimeMillis());
+    if (matches.size() != 1) return -1;
+    SessionActuation selected = matches.get(0);
 
     // 1 = force jump/taken, 0 = force fallthrough/not-taken
-    return ACTUATE_RETURN_BOOLEAN ? 1 : 0;
+    return selected.returnBoolean() ? 1 : 0;
   }
 
   public static void reset(String key) {
@@ -252,6 +350,55 @@ public final class ProbeRuntime {
     }
     if (lineNumber <= 0) return null;
     return new ParsedLineKey(dottedClassName, methodKey, lineNumber);
+  }
+
+  private static String sanitize(String value) {
+    if (value == null) return "";
+    return value.trim();
+  }
+
+  private static long clampTtlMs(long ttlMs) {
+    if (ttlMs < MIN_TTL_MS) return MIN_TTL_MS;
+    if (ttlMs > MAX_TTL_MS) return MAX_TTL_MS;
+    return ttlMs;
+  }
+
+  public static long minTtlMs() {
+    return MIN_TTL_MS;
+  }
+
+  public static long maxTtlMs() {
+    return MAX_TTL_MS;
+  }
+
+  private static int activeSessionCount(long now) {
+    pruneExpiredSessions(now);
+    return SESSION_ACTUATIONS.size();
+  }
+
+  private static List<SessionActuation> activeSessions(long now) {
+    pruneExpiredSessions(now);
+    return new ArrayList<>(SESSION_ACTUATIONS.values());
+  }
+
+  private static List<SessionActuation> activeSessionsForTargetKey(String targetKey, long now) {
+    List<SessionActuation> active = activeSessions(now);
+    List<SessionActuation> matches = new ArrayList<>();
+    for (SessionActuation session : active) {
+      if (session.targetKey().equals(targetKey)) {
+        matches.add(session);
+      }
+    }
+    return matches;
+  }
+
+  private static void pruneExpiredSessions(long now) {
+    for (Map.Entry<String, SessionActuation> entry : SESSION_ACTUATIONS.entrySet()) {
+      SessionActuation session = entry.getValue();
+      if (session == null || session.isExpired(now)) {
+        SESSION_ACTUATIONS.remove(entry.getKey(), session);
+      }
+    }
   }
 
   private static void tryLoadClassWithoutInitialization(String dottedClassName) {

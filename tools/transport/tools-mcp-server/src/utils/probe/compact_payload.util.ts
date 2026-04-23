@@ -49,11 +49,15 @@ export function compactRuntimeHints(runtime: Record<string, unknown>): Record<st
   }
   const out: Record<string, unknown> = {};
   if (typeof runtime.mode === "string") out.mode = runtime.mode;
+  if (typeof runtime.sessionId === "string") out.sessionId = runtime.sessionId;
   if (typeof runtime.actuatorId === "string") out.actuatorId = runtime.actuatorId;
   if (typeof runtime.actuateTargetKey === "string") out.actuateTargetKey = runtime.actuateTargetKey;
   if (typeof runtime.actuateReturnBoolean === "boolean") {
     out.actuateReturnBoolean = runtime.actuateReturnBoolean;
   }
+  if (typeof runtime.expiresAtEpoch === "number") out.expiresAtEpoch = runtime.expiresAtEpoch;
+  if (typeof runtime.scopeState === "string") out.scopeState = runtime.scopeState;
+  if (typeof runtime.activeSessionCount === "number") out.activeSessionCount = runtime.activeSessionCount;
   if (appPort && Object.keys(appPort).length > 0) out.appPort = appPort;
   return out;
 }

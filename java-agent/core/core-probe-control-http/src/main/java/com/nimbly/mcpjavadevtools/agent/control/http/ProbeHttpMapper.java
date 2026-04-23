@@ -135,9 +135,13 @@ final class ProbeHttpMapper {
     ActuationState actuation = runtime.actuation();
     return new ProbeHttpPayloads.RuntimePayload(
         actuation.mode(),
+        actuation.sessionId(),
         actuation.actuatorId(),
         actuation.targetKey(),
         actuation.returnBoolean(),
+        actuation.expiresAtEpoch(),
+        actuation.scopeState(),
+        actuation.activeSessionCount(),
         runtime.serverEpoch(),
         buildRuntimeStringSignal(runtime.applicationType()),
         buildRuntimePortSignal(runtime.appPort())
