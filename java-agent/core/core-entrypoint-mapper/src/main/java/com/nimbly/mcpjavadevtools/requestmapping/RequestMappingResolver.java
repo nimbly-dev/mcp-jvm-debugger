@@ -8,6 +8,8 @@ import com.nimbly.mcpjavadevtools.requestmapping.api.ResolverResponse;
 import com.nimbly.mcpjavadevtools.requestmapping.api.SuccessResponse;
 import com.nimbly.mcpjavadevtools.requestmapping.ast.MethodContext;
 import com.nimbly.mcpjavadevtools.requestmapping.ast.TypeDescriptor;
+import com.nimbly.mcpjavadevtools.requestmapping.core.BytecodeSpringMappingFallback;
+import com.nimbly.mcpjavadevtools.requestmapping.core.BytecodeResolvedEndpoint;
 import com.nimbly.mcpjavadevtools.requestmapping.core.MethodSelector;
 import com.nimbly.mcpjavadevtools.requestmapping.core.TypeIndex;
 import com.nimbly.mcpjavadevtools.requestmapping.core.TypeIndexBuilder;
@@ -25,6 +27,7 @@ import java.util.Optional;
 
 public final class RequestMappingResolver {
     private static final String CONTRACT_VERSION = ContractVersion.value();
+    private static final String BYTECODE_FALLBACK_STRATEGY = "java_bytecode_spring_annotation_fallback";
     private static final List<String> BOOTSTRAP_STRATEGIES = List.of(
             "java_ast_index_lookup",
             "java_ast_framework_resolution"
@@ -129,6 +132,17 @@ public final class RequestMappingResolver {
         }
 
         if (methodContexts.isEmpty()) {
+            Optional<BytecodeResolvedEndpoint> bytecodeResolved =
+                    BytecodeSpringMappingFallback.resolve(request, scanRoots, primaryType.getFqcn());
+            if (bytecodeResolved.isPresent()) {
+                return successFromBytecodeFallback(
+                        projectRoot,
+                        primaryType,
+                        request,
+                        bytecodeResolved.get(),
+                        templateProfileSource
+                );
+            }
             return failure(
                     "target_method_not_found",
                     "target_method_resolution",
@@ -136,9 +150,10 @@ public final class RequestMappingResolver {
                     List.of(
                             "classHint=" + safe(request.classHint),
                             "resolvedType=" + primaryType.getFqcn(),
-                            "methodHint=" + safe(request.methodHint)
+                            "methodHint=" + safe(request.methodHint),
+                            "bytecodeFallbackAttempted=true"
                     ),
-                    BOOTSTRAP_STRATEGIES
+                    List.of("java_ast_index_lookup", BYTECODE_FALLBACK_STRATEGY)
             );
         }
 
@@ -174,6 +189,18 @@ public final class RequestMappingResolver {
             }
         }
 
+        Optional<BytecodeResolvedEndpoint> bytecodeResolved =
+                BytecodeSpringMappingFallback.resolve(request, scanRoots, primaryType.getFqcn());
+        if (bytecodeResolved.isPresent()) {
+            return successFromBytecodeFallback(
+                    projectRoot,
+                    primaryType,
+                    request,
+                    bytecodeResolved.get(),
+                    templateProfileSource
+            );
+        }
+
         return failure(
                 "request_mapping_not_proven",
                 "request_mapping_resolution",
@@ -182,9 +209,10 @@ public final class RequestMappingResolver {
                         "classHint=" + safe(request.classHint),
                         "resolvedType=" + primaryType.getFqcn(),
                         "methodHint=" + safe(request.methodHint),
-                        "methodContextCount=" + methodContexts.size()
+                        "methodContextCount=" + methodContexts.size(),
+                        "bytecodeFallbackAttempted=true"
                 ),
-                BOOTSTRAP_STRATEGIES
+                List.of("java_ast_index_lookup", "java_ast_framework_resolution", BYTECODE_FALLBACK_STRATEGY)
         );
     }
 
@@ -253,6 +281,49 @@ public final class RequestMappingResolver {
                     "Provide project fixture overrides in .mcp-java-dev-tools/request-template.properties for stable endpoint assertions."
             );
         }
+        return candidate;
+    }
+
+    private static SuccessResponse successFromBytecodeFallback(
+            Path projectRoot,
+            TypeDescriptor primaryType,
+            ResolverRequest request,
+            BytecodeResolvedEndpoint endpoint,
+            String templateProfileSource
+    ) {
+        SuccessResponse response = new SuccessResponse();
+        response.status = "ok";
+        response.contractVersion = CONTRACT_VERSION;
+        response.framework = "spring_mvc";
+        response.requestSource = "spring_mvc";
+        response.requestCandidate = buildBytecodeFallbackRequestCandidate(endpoint, templateProfileSource);
+        response.matchedTypeFile = primaryType.getFileAbs().toString();
+        response.matchedRootAbs = projectRoot.toString();
+        response.evidence = List.of(
+                "resolvedType=" + primaryType.getFqcn(),
+                "mappingOwner=" + endpoint.mappingOwnerFqcn(),
+                "methodHint=" + request.methodHint,
+                "mapping_source=bytecode_annotation",
+                "templateProfile=" + templateProfileSource
+        );
+        response.attemptedStrategies = List.of("java_ast_index_lookup", BYTECODE_FALLBACK_STRATEGY);
+        return response;
+    }
+
+    private static RequestCandidate buildBytecodeFallbackRequestCandidate(
+            BytecodeResolvedEndpoint endpoint,
+            String templateProfileSource
+    ) {
+        RequestCandidate candidate = new RequestCandidate();
+        candidate.method = endpoint.httpMethod();
+        candidate.path = endpoint.path();
+        candidate.queryTemplate = "";
+        candidate.fullUrlHint = endpoint.path();
+        candidate.rationale = List.of(
+                "Resolved HTTP mapping from compiled bytecode annotations.",
+                "Mapping owner: " + endpoint.mappingOwnerFqcn(),
+                "Request template profile: " + templateProfileSource
+        );
         return candidate;
     }
 

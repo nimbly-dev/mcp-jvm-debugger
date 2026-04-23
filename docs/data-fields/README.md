@@ -189,6 +189,7 @@ examples:
 | `applicationType` | Framework type derived from selected synthesizer (not runtime introspection). | `probe_recipe_create` | false | `"spring"` |
 | `attemptedStrategies` | Ordered synthesis strategies attempted by the selected plugin. | `probe_recipe_create` | true | `["spring_annotation_mapping","spring_call_chain_resolution"]` |
 | `evidence` | Compact evidence lines used for deterministic synthesis and pushback context. | `probe_recipe_create` | true | `["request_source=spring_mvc"]` |
+| `evidence[] (mapping_source=bytecode_annotation)` | Indicates Spring request mapping was proven from compiled class annotations fallback (for example `target/classes`) when source mapping was insufficient. | `probe_recipe_create` | false | `"mapping_source=bytecode_annotation"` |
 | `trigger` | Protocol-aware trigger envelope emitted by synthesis. | `probe_recipe_create` | false | `{"kind":"http","method":"POST","path":"/v1/catalog"}` |
 | `auth` | Auth inference result and next-step hints. | `probe_recipe_create` | true | `{"status":"ok","strategy":"bearer"}` |
 | `notes` | Run notes and routing/inference diagnostics. Report mode is compact/failure-focused. | `probe_recipe_create` | true | `["execution_readiness=ready"]` |
