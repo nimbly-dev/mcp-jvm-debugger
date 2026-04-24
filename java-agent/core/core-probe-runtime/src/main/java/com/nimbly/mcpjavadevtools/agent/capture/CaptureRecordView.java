@@ -9,6 +9,7 @@ public final class CaptureRecordView {
   public final long executionStartedAtEpoch;
   public final long executionEndedAtEpoch;
   public final long executionDurationMs;
+  public final Long threadAllocatedBytesDelta;
   public final String redactionMode;
   public final List<CaptureValueView> args;
   public final CaptureValueView returnValue;
@@ -23,6 +24,7 @@ public final class CaptureRecordView {
       long executionStartedAtEpoch,
       long executionEndedAtEpoch,
       long executionDurationMs,
+      Long threadAllocatedBytesDelta,
       String redactionMode,
       List<CaptureValueView> args,
       CaptureValueView returnValue,
@@ -36,6 +38,7 @@ public final class CaptureRecordView {
     this.executionStartedAtEpoch = executionStartedAtEpoch;
     this.executionEndedAtEpoch = executionEndedAtEpoch;
     this.executionDurationMs = executionDurationMs;
+    this.threadAllocatedBytesDelta = threadAllocatedBytesDelta;
     this.redactionMode = redactionMode;
     this.args = args;
     this.returnValue = returnValue;

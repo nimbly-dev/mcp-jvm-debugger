@@ -318,6 +318,9 @@ test("mcp IT: happy-path covers regression, probe status, capture, class invento
       capture.structuredContent.result.capture.executionStartedAtEpoch,
     capture.structuredContent.result.capture.executionDurationMs,
   );
+  if (typeof capture.structuredContent.result.capture.threadAllocatedBytesDelta === "number") {
+    assert.equal(capture.structuredContent.result.capture.threadAllocatedBytesDelta >= 0, true);
+  }
 
   const resetClass = await callTool("probe_reset", {
     className: postControllerFqcn,

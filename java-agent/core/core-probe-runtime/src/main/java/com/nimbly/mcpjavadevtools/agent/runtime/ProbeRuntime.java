@@ -157,7 +157,8 @@ public final class ProbeRuntime {
       Object returnValue,
       Throwable thrown,
       long executionStartedAtEpoch,
-      long executionEndedAtEpoch
+      long executionEndedAtEpoch,
+      long threadAllocatedBytesAtEnter
   ) {
     ProbeCaptureStore.captureByClassMethod(
         dottedClassName,
@@ -166,8 +167,13 @@ public final class ProbeRuntime {
         returnValue,
         thrown,
         executionStartedAtEpoch,
-        executionEndedAtEpoch
+        executionEndedAtEpoch,
+        threadAllocatedBytesAtEnter
     );
+  }
+
+  public static long currentThreadAllocatedBytes() {
+    return ProbeCaptureStore.currentThreadAllocatedBytes();
   }
 
   public static void hitLineByClassMethod(String dottedClassName, String methodName, int lineNumber) {

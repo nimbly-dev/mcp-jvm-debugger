@@ -91,6 +91,7 @@ final class ProbeHttpMapper {
           null,
           null,
           null,
+          null,
           null
       );
     }
@@ -104,6 +105,7 @@ final class ProbeHttpMapper {
         preview.executionStartedAtEpoch,
         preview.executionEndedAtEpoch,
         preview.executionDurationMs,
+        preview.threadAllocatedBytesDelta,
         buildCapturePreviewArgs(preview.argsPreview),
         buildCapturePreviewValue(preview.returnPreview),
         buildCapturePreviewValue(preview.thrownPreview),
@@ -176,6 +178,7 @@ final class ProbeHttpMapper {
         capture.executionStartedAtEpoch,
         capture.executionEndedAtEpoch,
         capture.executionDurationMs,
+        capture.threadAllocatedBytesDelta,
         capture.redactionMode,
         buildCaptureArgs(capture.args),
         buildCaptureValue(capture.returnValue),

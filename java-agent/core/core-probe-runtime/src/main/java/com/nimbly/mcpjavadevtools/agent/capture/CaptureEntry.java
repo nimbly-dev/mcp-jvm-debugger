@@ -12,6 +12,7 @@ final class CaptureEntry {
   private final long executionStartedAtEpoch;
   private final long executionEndedAtEpoch;
   private final long executionDurationMs;
+  private final Long threadAllocatedBytesDelta;
   private final List<CaptureValue> args;
   private final CaptureValue returnValue;
   private final CaptureValue thrownValue;
@@ -25,6 +26,7 @@ final class CaptureEntry {
       long executionStartedAtEpoch,
       long executionEndedAtEpoch,
       long executionDurationMs,
+      Long threadAllocatedBytesDelta,
       List<CaptureValue> args,
       CaptureValue returnValue,
       CaptureValue thrownValue,
@@ -37,6 +39,7 @@ final class CaptureEntry {
     this.executionStartedAtEpoch = executionStartedAtEpoch;
     this.executionEndedAtEpoch = executionEndedAtEpoch;
     this.executionDurationMs = executionDurationMs;
+    this.threadAllocatedBytesDelta = threadAllocatedBytesDelta;
     this.args = args;
     this.returnValue = returnValue;
     this.thrownValue = thrownValue;
@@ -65,6 +68,7 @@ final class CaptureEntry {
         executionStartedAtEpoch,
         executionEndedAtEpoch,
         executionDurationMs,
+        threadAllocatedBytesDelta,
         redactionMode,
         previewArgs,
         returnPreview,
@@ -93,6 +97,7 @@ final class CaptureEntry {
         executionStartedAtEpoch,
         executionEndedAtEpoch,
         executionDurationMs,
+        threadAllocatedBytesDelta,
         redactionMode,
         outArgs,
         outReturn,

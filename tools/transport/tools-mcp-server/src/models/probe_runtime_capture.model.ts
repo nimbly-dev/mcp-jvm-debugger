@@ -8,6 +8,7 @@ export type ProbeCapturePreviewPayload =
       executionStartedAtEpoch?: number;
       executionEndedAtEpoch?: number;
       executionDurationMs?: number;
+      threadAllocatedBytesDelta?: number;
       executionPaths?: ProbeExecutionPaths;
       [key: string]: unknown;
     }
@@ -23,6 +24,7 @@ export interface ProbeCaptureRecordPayload {
   executionStartedAtEpoch?: number;
   executionEndedAtEpoch?: number;
   executionDurationMs?: number;
+  threadAllocatedBytesDelta?: number;
   executionPaths?: ProbeExecutionPaths;
   [key: string]: unknown;
 }

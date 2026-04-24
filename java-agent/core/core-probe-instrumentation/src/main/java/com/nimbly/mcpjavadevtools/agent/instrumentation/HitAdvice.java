@@ -8,13 +8,15 @@ public final class HitAdvice {
   private HitAdvice() {}
 
   @Advice.OnMethodEnter(suppress = Throwable.class)
-  public static long onEnter() {
+  public static long onEnter(@Advice.Local("threadAllocatedBytesAtEnter") long threadAllocatedBytesAtEnter) {
+    threadAllocatedBytesAtEnter = ProbeRuntime.currentThreadAllocatedBytes();
     return System.currentTimeMillis();
   }
 
   @Advice.OnMethodExit(onThrowable = Throwable.class, suppress = Throwable.class)
   public static void onExit(
       @Advice.Enter long executionStartedAtEpoch,
+      @Advice.Local("threadAllocatedBytesAtEnter") long threadAllocatedBytesAtEnter,
       @Advice.Origin("#t") String dottedClassName,
       @Advice.Origin("#m") String methodName,
       @Advice.AllArguments Object[] allArguments,
@@ -28,7 +30,8 @@ public final class HitAdvice {
         returnValue,
         thrown,
         executionStartedAtEpoch,
-        System.currentTimeMillis()
+        System.currentTimeMillis(),
+        threadAllocatedBytesAtEnter
     );
   }
 }

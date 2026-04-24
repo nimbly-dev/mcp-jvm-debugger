@@ -22,6 +22,7 @@ Text vs structured content policy (probe tools):
 Capture timestamp naming:
 - Capture timestamp fields use `capturedAtEpoch`.
 - Execution timing fields use `executionStartedAtEpoch`, `executionEndedAtEpoch`, and `executionDurationMs`.
+- Allocation delta fields use `threadAllocatedBytesDelta` (bytes) and are optional when unsupported.
 
 ## Global Failure Diagnostics Contract
 
@@ -238,6 +239,7 @@ examples:
 | `response.json.capturePreview.executionStartedAtEpoch` | Invocation start Unix-epoch timestamp in JVM host wall-clock milliseconds. | `probe_get_status` | false | `1739671200401` |
 | `response.json.capturePreview.executionEndedAtEpoch` | Invocation end Unix-epoch timestamp in JVM host wall-clock milliseconds. | `probe_get_status` | false | `1739671200456` |
 | `response.json.capturePreview.executionDurationMs` | Invocation elapsed wall-clock duration in milliseconds (`executionEndedAtEpoch - executionStartedAtEpoch`, non-negative). | `probe_get_status` | false | `55` |
+| `response.json.capturePreview.threadAllocatedBytesDelta` | Per-invocation thread allocation delta in bytes (`exit - enter`, non-negative). Omitted when runtime support is unavailable. | `probe_get_status` | false | `4096` |
 | `response.json.capturePreview.executionPaths` | Optional execution-path frames captured at runtime when `MCP_PROBE_INCLUDE_EXECUTION_PATHS=true`. | `probe_get_status` | false | `["CatalogController.listCatalogShoes()#42"]` |
 | `response.json.runtime` | Runtime observe/session-actuation payload. | `probe_get_status` | false | `{"mode":"observe","activeSessionCount":0}` |
 | `response.json.runtime.sessionId` | Representative active session id when actuation is armed. | `probe_get_status` | false | `"regression-run-42"` |
@@ -263,6 +265,7 @@ examples:
 | `result.capture.executionStartedAtEpoch` | Invocation start Unix-epoch timestamp in JVM host wall-clock milliseconds. | `probe_get_capture` | false | `1739671200401` |
 | `result.capture.executionEndedAtEpoch` | Invocation end Unix-epoch timestamp in JVM host wall-clock milliseconds. | `probe_get_capture` | false | `1739671200456` |
 | `result.capture.executionDurationMs` | Invocation elapsed wall-clock duration in milliseconds (`executionEndedAtEpoch - executionStartedAtEpoch`, non-negative). | `probe_get_capture` | false | `55` |
+| `result.capture.threadAllocatedBytesDelta` | Per-invocation thread allocation delta in bytes (`exit - enter`, non-negative). Omitted when runtime support is unavailable. | `probe_get_capture` | false | `4096` |
 | `result.capture.executionPaths` | Optional execution-path frames when `MCP_PROBE_INCLUDE_EXECUTION_PATHS=true`. | `probe_get_capture` | false | `["CatalogService.save()#88"]` |
 | `result.reason` | Error reason when capture is unavailable. | `probe_get_capture` | false | `"capture_not_found"` |
 
