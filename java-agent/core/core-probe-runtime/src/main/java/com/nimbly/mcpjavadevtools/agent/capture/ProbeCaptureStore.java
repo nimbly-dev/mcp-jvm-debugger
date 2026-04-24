@@ -64,7 +64,8 @@ public final class ProbeCaptureStore {
       Object returnValue,
       Throwable thrown,
       long executionStartedAtEpoch,
-      long executionEndedAtEpoch
+      long executionEndedAtEpoch,
+      long threadAllocatedBytesAtEnter
   ) {
     if (!captureEnabled) return;
     if (dottedClassName == null || dottedClassName.isBlank()) return;
@@ -83,6 +84,12 @@ public final class ProbeCaptureStore {
     }
     long executionDurationMs = normalizedExecutionEndedAtEpoch - normalizedExecutionStartedAtEpoch;
     long capturedAtEpoch = normalizedExecutionEndedAtEpoch;
+    Long threadAllocatedBytesDelta = null;
+    long threadAllocatedBytesAtExit = ThreadAllocationMetrics.currentThreadAllocatedBytes();
+    if (threadAllocatedBytesAtEnter >= 0L && threadAllocatedBytesAtExit >= 0L) {
+      long delta = threadAllocatedBytesAtExit - threadAllocatedBytesAtEnter;
+      threadAllocatedBytesDelta = delta >= 0L ? delta : 0L;
+    }
 
     List<CaptureValue> capturedArgs = CaptureValueSerializer.serializeArguments(
         allArguments,
@@ -113,6 +120,7 @@ public final class ProbeCaptureStore {
         normalizedExecutionStartedAtEpoch,
         normalizedExecutionEndedAtEpoch,
         executionDurationMs,
+        threadAllocatedBytesDelta,
         capturedArgs,
         capturedReturn,
         capturedThrown,
@@ -157,6 +165,10 @@ public final class ProbeCaptureStore {
       if (entry == null) return null;
       return entry.toRecord();
     }
+  }
+
+  public static long currentThreadAllocatedBytes() {
+    return ThreadAllocationMetrics.currentThreadAllocatedBytes();
   }
 
   public static void resetByKey(String key) {

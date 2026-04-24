@@ -11,6 +11,7 @@ public final class CapturePreviewView {
   public final long executionStartedAtEpoch;
   public final long executionEndedAtEpoch;
   public final long executionDurationMs;
+  public final Long threadAllocatedBytesDelta;
   public final String redactionMode;
   public final List<CaptureValueView> argsPreview;
   public final CaptureValueView returnPreview;
@@ -26,6 +27,7 @@ public final class CapturePreviewView {
       long executionStartedAtEpoch,
       long executionEndedAtEpoch,
       long executionDurationMs,
+      Long threadAllocatedBytesDelta,
       String redactionMode,
       List<CaptureValueView> argsPreview,
       CaptureValueView returnPreview,
@@ -40,6 +42,7 @@ public final class CapturePreviewView {
     this.executionStartedAtEpoch = executionStartedAtEpoch;
     this.executionEndedAtEpoch = executionEndedAtEpoch;
     this.executionDurationMs = executionDurationMs;
+    this.threadAllocatedBytesDelta = threadAllocatedBytesDelta;
     this.redactionMode = redactionMode;
     this.argsPreview = argsPreview;
     this.returnPreview = returnPreview;
@@ -57,6 +60,7 @@ public final class CapturePreviewView {
         0L,
         0L,
         0L,
+        null,
         redactionMode,
         Collections.emptyList(),
         null,
@@ -73,6 +77,7 @@ public final class CapturePreviewView {
       long executionStartedAtEpoch,
       long executionEndedAtEpoch,
       long executionDurationMs,
+      Long threadAllocatedBytesDelta,
       String redactionMode,
       List<CaptureValueView> argsPreview,
       CaptureValueView returnPreview,
@@ -88,6 +93,7 @@ public final class CapturePreviewView {
         executionStartedAtEpoch,
         executionEndedAtEpoch,
         executionDurationMs,
+        threadAllocatedBytesDelta,
         redactionMode,
         argsPreview,
         returnPreview,

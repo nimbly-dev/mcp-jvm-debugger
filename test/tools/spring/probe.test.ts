@@ -92,6 +92,7 @@ test("probe_get_status supports 0.1.0 nested envelope", async () => {
         executionStartedAtEpoch: 5500,
         executionEndedAtEpoch: 5555,
         executionDurationMs: 55,
+        threadAllocatedBytesDelta: 2048,
             executionPaths: [
               "CatalogController.listCatalogShoes()#42",
               "CatalogService.listCatalogShoes()#101",
@@ -133,6 +134,7 @@ test("probe_get_status supports 0.1.0 nested envelope", async () => {
     assert.equal(out.structuredContent.response.json.capturePreview.executionStartedAtEpoch, 5500);
     assert.equal(out.structuredContent.response.json.capturePreview.executionEndedAtEpoch, 5555);
     assert.equal(out.structuredContent.response.json.capturePreview.executionDurationMs, 55);
+    assert.equal(out.structuredContent.response.json.capturePreview.threadAllocatedBytesDelta, 2048);
     assert.equal(out.structuredContent.response.json.capturePreview.executionPaths, undefined);
     assert.equal(out.structuredContent.response.json.runtime.applicationType, undefined);
     assert.equal(out.structuredContent.response.json.runtime.serverEpoch, undefined);
@@ -492,6 +494,7 @@ test("probe_get_status supports 0.1.0 batch rows with nested probe payload", asy
             executionStartedAtEpoch: 4420,
             executionEndedAtEpoch: 4444,
             executionDurationMs: 24,
+            threadAllocatedBytesDelta: 512,
               executionPaths: ["CatalogController.listCatalogShoes()#42"],
           },
           runtime: {
@@ -537,6 +540,7 @@ test("probe_get_status supports 0.1.0 batch rows with nested probe payload", asy
     assert.equal(firstRow.capturePreview.executionStartedAtEpoch, 4420);
     assert.equal(firstRow.capturePreview.executionEndedAtEpoch, 4444);
     assert.equal(firstRow.capturePreview.executionDurationMs, 24);
+    assert.equal(firstRow.capturePreview.threadAllocatedBytesDelta, 512);
     assert.equal(firstRow.capturePreview.executionPaths, undefined);
   });
 });
@@ -552,6 +556,7 @@ test("probe_get_capture returns capture payload when available", async () => {
         executionStartedAtEpoch: 950,
         executionEndedAtEpoch: 1000,
         executionDurationMs: 50,
+        threadAllocatedBytesDelta: 1024,
         redactionMode: "basic",
         args: [{ index: 0, value: "{\"sku\":\"A1\"}", truncated: false, originalLength: 12, redacted: false }],
         returnValue: { value: "{\"ok\":true}", truncated: false, originalLength: 11, redacted: false },
@@ -573,6 +578,7 @@ test("probe_get_capture returns capture payload when available", async () => {
     assert.equal((parsed as any).result.executionStartedAtEpoch, 950);
     assert.equal((parsed as any).result.executionEndedAtEpoch, 1000);
     assert.equal((parsed as any).result.executionDurationMs, 50);
+    assert.equal((parsed as any).result.threadAllocatedBytesDelta, 1024);
     assert.equal((parsed as any).result.argsCount, 1);
     assert.equal((parsed as any).result.executionPathCount, 1);
     assert.equal((parsed as any).result.capture, undefined);
@@ -582,6 +588,7 @@ test("probe_get_capture returns capture payload when available", async () => {
     assert.equal(out.structuredContent.result.capture.executionStartedAtEpoch, 950);
     assert.equal(out.structuredContent.result.capture.executionEndedAtEpoch, 1000);
     assert.equal(out.structuredContent.result.capture.executionDurationMs, 50);
+    assert.equal(out.structuredContent.result.capture.threadAllocatedBytesDelta, 1024);
     assert.equal(out.structuredContent.result.capture.argsCount, 1);
     assert.equal(out.structuredContent.result.capture.hasReturnValue, true);
     assert.equal(out.structuredContent.result.capture.hasThrownValue, false);
@@ -624,6 +631,7 @@ test("probe_get_capture includes timing fields for thrown captures", async () =>
         executionStartedAtEpoch: 1400,
         executionEndedAtEpoch: 1500,
         executionDurationMs: 100,
+        threadAllocatedBytesDelta: 1536,
         redactionMode: "basic",
         args: [],
         returnValue: null,
@@ -649,6 +657,7 @@ test("probe_get_capture includes timing fields for thrown captures", async () =>
     assert.equal(out.structuredContent.result.capture.executionStartedAtEpoch, 1400);
     assert.equal(out.structuredContent.result.capture.executionEndedAtEpoch, 1500);
     assert.equal(out.structuredContent.result.capture.executionDurationMs, 100);
+    assert.equal(out.structuredContent.result.capture.threadAllocatedBytesDelta, 1536);
   });
 });
 

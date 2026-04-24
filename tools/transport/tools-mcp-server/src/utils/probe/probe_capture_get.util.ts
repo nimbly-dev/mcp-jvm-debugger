@@ -78,6 +78,7 @@ export async function probeCaptureGet(args: {
           executionStartedAtEpoch: compactCapture?.executionStartedAtEpoch,
           executionEndedAtEpoch: compactCapture?.executionEndedAtEpoch,
           executionDurationMs: compactCapture?.executionDurationMs,
+          threadAllocatedBytesDelta: compactCapture?.threadAllocatedBytesDelta,
           argsCount: compactCapture?.argsCount,
           hasReturnValue: compactCapture?.hasReturnValue,
           hasThrownValue: compactCapture?.hasThrownValue,
