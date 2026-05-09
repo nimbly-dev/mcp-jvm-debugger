@@ -378,8 +378,22 @@ export async function buildReplayPreflightWithDiscovery(
 ): Promise<BuildReplayPreflightWithDiscoveryResult> {
   let mergedProvidedContext = { ...args.providedContext };
   let projectContextArg: BuildPreflightArgs["projectContext"] | undefined;
+  const strictProbeBasesForConvergence: string[] = [];
+  if (args.metadata.execution.probeVerification) {
+    const probeBaseFromInitial = resolveProbeBaseUrl({
+      providedContext: mergedProvidedContext,
+      contract: args.contract,
+    });
+    if (probeBaseFromInitial) strictProbeBasesForConvergence.push(probeBaseFromInitial);
+  }
   if (args.projectContextOptions) {
-    const projectContext = await resolveProjectContextForRegression(args.projectContextOptions);
+    const projectContext = await resolveProjectContextForRegression({
+      ...args.projectContextOptions,
+      strictProbeVerification: args.metadata.execution.probeVerification === true,
+      ...(strictProbeBasesForConvergence.length > 0
+        ? { strictProbeBaseUrls: strictProbeBasesForConvergence }
+        : {}),
+    });
     if (projectContext.status === "ok") {
       mergedProvidedContext = {
         ...projectContext.contextPatch,

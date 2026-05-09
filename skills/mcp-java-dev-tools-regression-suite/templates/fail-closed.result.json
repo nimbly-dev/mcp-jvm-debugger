@@ -1,0 +1,7 @@
+{
+  "status": "fail_closed",
+  "reasonCode": "<reason-code>",
+  "checks": [],
+  "nextAction": "<single deterministic action>"
+}
+

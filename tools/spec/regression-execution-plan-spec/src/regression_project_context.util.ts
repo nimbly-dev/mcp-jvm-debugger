@@ -37,6 +37,8 @@ type ResolveProjectContextArgs = {
   env?: Record<string, string | undefined>;
   runtimeContextName?: string;
   healthChecksEnabled?: boolean;
+  strictProbeVerification?: boolean;
+  strictProbeBaseUrls?: string[];
   runtimeStarter?: RuntimeStarter;
 };
 
@@ -129,6 +131,17 @@ async function readProbeRegistryFromWorkspace(workspaceRootAbs: string): Promise
   };
 }
 
+function resolveProbeBaseUrlFromRegistry(args: {
+  registry: ProbeRegistry;
+  profileName: string;
+  probeId: string;
+}): string | null {
+  const profile = args.registry.profiles?.[args.profileName];
+  const probe = profile?.probes?.[args.probeId];
+  const baseUrl = typeof probe?.baseUrl === "string" ? probe.baseUrl.trim() : "";
+  return baseUrl.length > 0 ? baseUrl : null;
+}
+
 function getAgentJarPathForAutoStart(): string | null {
   const configured =
     process.env.MCP_JAVA_AGENT_JAR ??
@@ -136,50 +149,6 @@ function getAgentJarPathForAutoStart(): string | null {
     process.env.MCP_AGENT_JAR_PATH;
   if (!configured || configured.trim().length === 0) return null;
   return configured.trim();
-}
-
-function buildProbeJavaToolOptions(args: {
-  serviceName: string;
-  workspaceRootAbs: string;
-  profileName: string;
-  registry: ProbeRegistry;
-  existingJavaToolOptions?: string;
-}): { ok: true; javaToolOptions: string } | { ok: false; detail: string } {
-  const { serviceName, profileName, registry, existingJavaToolOptions } = args;
-  const profile = registry.profiles?.[profileName];
-  const probe = profile?.probes?.[serviceName];
-  if (!probe) {
-    return {
-      ok: false,
-      detail: `Probe registry entry missing for startup '${serviceName}' in profile '${profileName}'.`,
-    };
-  }
-  const baseUrl = typeof probe.baseUrl === "string" ? probe.baseUrl.trim() : "";
-  const port = baseUrl ? extractProbePort(baseUrl) : null;
-  if (!port) {
-    return {
-      ok: false,
-      detail: `Probe baseUrl missing/invalid for startup '${serviceName}' in profile '${profileName}'.`,
-    };
-  }
-  const include = Array.isArray(probe.include) ? probe.include.filter((entry) => typeof entry === "string" && entry.trim().length > 0) : [];
-  if (include.length === 0) {
-    return {
-      ok: false,
-      detail: `Probe include[] missing for startup '${serviceName}' in profile '${profileName}'.`,
-    };
-  }
-  const agentJar = getAgentJarPathForAutoStart();
-  if (!agentJar) {
-    return {
-      ok: false,
-      detail: "Auto-start probe injection requires MCP_JAVA_AGENT_JAR (or MCP_PROBE_JAVA_AGENT_JAR) to be set.",
-    };
-  }
-  const sidecar = `-javaagent:${agentJar}=host=0.0.0.0;port=${port};include=${include.join(",")}`;
-  const existing = (existingJavaToolOptions ?? "").trim();
-  const javaToolOptions = existing.length > 0 ? `${sidecar} ${existing}` : sidecar;
-  return { ok: true, javaToolOptions };
 }
 
 function buildProbeJavaAgentArg(args: {
@@ -427,22 +396,12 @@ async function defaultRuntimeStarter(args: {
           detail: agent.detail,
         };
       }
-      const toolOptions = buildProbeJavaToolOptions({
-        serviceName: startup.name,
-        workspaceRootAbs,
-        profileName: registry.profileName,
-        registry: registry.registry,
-        ...(typeof startup.env?.JAVA_TOOL_OPTIONS === "string"
-          ? { existingJavaToolOptions: startup.env.JAVA_TOOL_OPTIONS }
-          : {}),
-      });
-      if (!toolOptions.ok) {
-        return {
-          attempted: true,
-          success: false,
-          detail: toolOptions.detail,
-        };
-      }
+      const existingToolOptions = typeof startup.env?.JAVA_TOOL_OPTIONS === "string"
+        ? startup.env.JAVA_TOOL_OPTIONS.trim()
+        : "";
+      const javaToolOptions = existingToolOptions.length > 0
+        ? `${agent.agentArg} ${existingToolOptions}`
+        : agent.agentArg;
       const cwd = startup.appdir
         ? (path.isAbsolute(startup.appdir)
             ? startup.appdir
@@ -474,7 +433,7 @@ async function defaultRuntimeStarter(args: {
           env: {
             ...process.env,
             ...(startup.env ?? {}),
-            JAVA_TOOL_OPTIONS: toolOptions.javaToolOptions,
+            JAVA_TOOL_OPTIONS: javaToolOptions,
           },
           windowsHide: true,
           detached: true,
@@ -677,6 +636,83 @@ export async function resolveProjectContextForRegression(
         await new Promise((resolve) => setTimeout(resolve, 1500));
       }
       health = await runRequiredHealthChecks(workspace);
+    }
+    let strictProbeBases =
+      Array.isArray(args.strictProbeBaseUrls)
+        ? args.strictProbeBaseUrls
+            .filter((entry): entry is string => typeof entry === "string")
+            .map((entry) => entry.trim())
+            .filter((entry) => entry.length > 0)
+        : [];
+    if (
+      strictProbeBases.length === 0 &&
+      args.strictProbeVerification === true &&
+      selectedRuntimeContext?.mode === "terminal" &&
+      Array.isArray(selectedRuntimeContext.startups) &&
+      selectedRuntimeContext.startups.length > 0
+    ) {
+      const registry = await readProbeRegistryFromWorkspace(workspace.projectRoot);
+      if (registry.ok) {
+        const derived = selectedRuntimeContext.startups
+          .map((startup) =>
+            resolveProbeBaseUrlFromRegistry({
+              registry: registry.registry,
+              profileName: registry.profileName,
+              probeId: startup.name,
+            }),
+          )
+          .filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+        strictProbeBases = [...new Set(derived)];
+      }
+    }
+    if (health.ok && strictProbeBases.length > 0) {
+      const timeoutMs =
+        typeof workspace.defaults?.requestTimeoutMs === "number" && Number.isFinite(workspace.defaults.requestTimeoutMs) && workspace.defaults.requestTimeoutMs > 0
+          ? Math.floor(workspace.defaults.requestTimeoutMs)
+          : 3000;
+      let unreachableBases: string[] = [];
+      for (const probeBase of strictProbeBases) {
+        const reachable = await httpCheck(`${probeBase.replace(/\/$/, "")}/__probe/status`, "GET", timeoutMs);
+        if (!reachable) unreachableBases.push(probeBase);
+      }
+      if (unreachableBases.length > 0 && selectedRuntimeContext && autoStartEnabled) {
+        const starter = args.runtimeStarter ?? defaultRuntimeStarter;
+        const startResult = await starter({
+          runtimeContext: selectedRuntimeContext,
+          workspaceRootAbs: workspace.projectRoot,
+        });
+        autoStartAttempted = autoStartAttempted || startResult.attempted;
+        autoStarted = startResult.success;
+        autoStartDetail = startResult.detail;
+        if (autoStarted) {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        }
+        unreachableBases = [];
+        for (const probeBase of strictProbeBases) {
+          const reachable = await httpCheck(`${probeBase.replace(/\/$/, "")}/__probe/status`, "GET", timeoutMs);
+          if (!reachable) unreachableBases.push(probeBase);
+        }
+      }
+      if (unreachableBases.length > 0) {
+        const checks = strictProbeBases.map((probeBase) =>
+          `probe:${probeBase}=${unreachableBases.includes(probeBase) ? "unreachable" : "ready"}`,
+        );
+        if (autoStartAttempted) {
+          checks.push(`runtime:auto_start=${autoStarted ? "ok" : "failed"}`);
+        }
+        if (autoStartDetail) {
+          checks.push(`runtime:auto_start_detail=${autoStartDetail}`);
+        }
+        return {
+          status: "blocked",
+          reasonCode: "external_healthcheck_failed",
+          checks,
+          nextAction: "Start/restart runtime with MCP javaagent sidecar wiring and retry.",
+          requiredUserAction: unreachableBases.map(
+            (probeBase) => `Probe endpoint unreachable at ${probeBase}. Start/restart runtime with javaagent and retry.`,
+          ),
+        };
+      }
     }
     if (!health.ok) {
       const checks = [...health.checks];

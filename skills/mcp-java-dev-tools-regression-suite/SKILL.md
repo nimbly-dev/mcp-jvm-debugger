@@ -21,16 +21,44 @@ Single-call execution skill for regression plans.
    - `phase_5_artifact_persist_and_summary`
 3. No phase skipping. Fail closed with deterministic reason and nextAction.
 
-## Portable Source of Truth
+## FSM Router
 
-Use these reference docs as the canonical execution bible:
+This `SKILL.md` is a thin router. Execute phases in order and load only the needed reference/script for each phase.
+
+1. `phase_0_load_plan`:
+   - reference: `references/execution-fsm.md`
+2. `phase_1_project_context`:
+   - reference: `references/runtime-policy.md`
+   - script: `scripts/runtime-converge.js`
+3. `phase_2_preflight_and_discovery`:
+   - reference: `references/runtime-policy.md`
+   - script: `scripts/preflight-resolve.js`
+4. `phase_3_strict_probe_gate`:
+   - reference: `references/probe-verification-policy.md`
+   - script: `scripts/probe-gate-check.js`
+5. `phase_4_step_execution`:
+   - reference: `references/execution-fsm.md`
+   - script: `scripts/step-execution-check.js`
+6. `phase_5_artifact_persist_and_summary`:
+   - reference: `references/artifact-contract.md`
+   - reference: `references/output-contract.md`
+   - script: `scripts/summarize-run.js`
+   - script: `scripts/cleanup-runtime.js`
+
+## Source of Truth
+
+Use these references/templates:
 
 1. `references/execution-contract.md`
-2. `references/project-context-and-preflight.md`
-3. `references/strict-probe-gate.md`
-4. `references/synthesis-and-routing.md`
-5. `references/artifact-contract.md`
-6. `references/output-contract.md`
+2. `references/execution-fsm.md`
+3. `references/runtime-policy.md`
+4. `references/probe-verification-policy.md`
+5. `references/reason-codes.md`
+6. `references/artifact-contract.md`
+7. `references/output-contract.md`
+8. `templates/fail-closed.result.json`
+9. `templates/needs-user-input.result.json`
+10. `templates/run-summary.result.json`
 
 ## Required Artifacts and Correlation
 
@@ -54,13 +82,34 @@ Use these reference docs as the canonical execution bible:
    - `nextAction=enable_mcp_jvm_debugger_tools_then_rerun`
 4. Wrapper script usage is optional implementation detail.
 
-## Discovery-First and Strict Runtime Rules
+## Runtime Rules
 
-1. Apply Discovery-First Orchestration from `references/project-context-and-preflight.md`.
-2. If `metadata.execution.probeVerification=true`, strict probe gate is mandatory.
-3. If probe remains unreachable after allowed auto-start attempt, fail closed with `external_healthcheck_failed`.
-4. For terminal runtime with strict probe verification, use deterministic probe port mapping from `.mcpjvm/probe-config.json` (`--probe-id <id>` preferred; `--agent-port <port>` explicit override).
-5. Do not rely on auto-scanned probe ports in strict mode.
-6. If `projects.json` runtime context exists, startup/restart must use that context; ad-hoc direct `java -jar` fallback is non-compliant and must fail closed.
+1. `autoStart=true`:
+   - if app is down, start via `projects.json` runtime context
+   - if app is up but non-compliant (probe down / no sidecar), replace and restart via runtime context
+2. `autoStart=false`:
+   - do not start processes
+   - if runtime is not already compliant, fail closed
+3. If `metadata.execution.probeVerification=true`, strict probe gate is mandatory.
+4. Ad-hoc direct `java -jar` fallback is non-compliant when `projects.json` runtime context exists.
+
+## Discovery-First Orchestration
+
+1. Build preflight from plan + context.
+2. Resolve discoverable prerequisites before asking user input.
+3. Merge precedence: user-provided > discovered > non-secret defaults.
+4. Re-run preflight and continue only when ready.
+
+## Strict Probe Port Mapping
+
+1. For strict runtime verification, prefer `--probe-id <id>` with registry resolution.
+2. Use `--agent-port <port>` only as explicit override.
+3. Do not rely on auto-scanned probe port in strict mode.
+
+## Deterministic Fail-Closed Codes
+
+1. `external_healthcheck_failed`
+2. `runtime_auto_replace_required` (intermediate converge signal; must auto-replace in same run when `autoStart=true`)
+3. `probe_gate_failed`
 
 
