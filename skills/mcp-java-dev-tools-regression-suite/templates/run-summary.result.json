@@ -1,0 +1,10 @@
+{
+  "status": "pass|fail|blocked",
+  "reasonCode": "ok|<reason-code>",
+  "scope": "controller|service|api",
+  "routingOutcome": "<code>",
+  "runStartEpoch": 0,
+  "runEndEpoch": 0,
+  "runDurationMs": 0
+}
+

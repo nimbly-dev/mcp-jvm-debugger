@@ -374,3 +374,138 @@ test("resolveProjectContextForRegression attempts auto-start when health checks 
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("resolveProjectContextForRegression attempts auto-start when strict probe is unreachable even if health checks are ready", async () => {
+  const root = createTestTempDir("project-context-strict-probe-convergence");
+  const apiServer = http.createServer((_req: any, res: any) => {
+    res.statusCode = 200;
+    res.end("ok");
+  });
+  await new Promise<void>((resolve) => apiServer.listen(0, "127.0.0.1", () => resolve()));
+  let starterCalled = 0;
+  try {
+    const address = apiServer.address();
+    if (!address || typeof address === "string") throw new Error("server address unavailable");
+    const port = address.port;
+    const projects = path.join(root, ".mcpjvm", "my-project", "projects.json");
+    writeJson(projects, {
+      workspaces: [
+        {
+          projectRoot: root,
+          runtimeContexts: [
+            {
+              name: "terminal-cli",
+              mode: "terminal",
+              autoStart: true,
+              startups: [{ name: "visits-service", command: "java" }],
+            },
+          ],
+          externalSystems: [
+            {
+              name: "visits-api",
+              kind: "service",
+              host: "127.0.0.1",
+              port,
+              healthChecks: [
+                { id: "http-ready", type: "http", url: `http://127.0.0.1:${port}/health`, required: true },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const out = await resolveProjectContextForRegression({
+      workspaceRootAbs: root,
+      projectsFileAbs: projects,
+      strictProbeBaseUrls: ["http://127.0.0.1:65534"],
+      runtimeStarter: async () => {
+        starterCalled += 1;
+        return { attempted: true, success: false, detail: "probe wiring missing" };
+      },
+    });
+    assert.equal(starterCalled, 1);
+    assert.equal(out.status, "blocked");
+    if (out.status === "blocked") {
+      assert.equal(out.reasonCode, "external_healthcheck_failed");
+      assert.equal(out.checks?.some((entry: string) => entry.includes("probe:http://127.0.0.1:65534=unreachable")), true);
+    }
+  } finally {
+    apiServer.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("resolveProjectContextForRegression derives strict probe targets from startup names when probeVerification is enabled", async () => {
+  const root = createTestTempDir("project-context-strict-probe-derived");
+  const apiServer = http.createServer((_req: any, res: any) => {
+    res.statusCode = 200;
+    res.end("ok");
+  });
+  await new Promise<void>((resolve) => apiServer.listen(0, "127.0.0.1", () => resolve()));
+  let starterCalled = 0;
+  try {
+    const address = apiServer.address();
+    if (!address || typeof address === "string") throw new Error("server address unavailable");
+    const port = address.port;
+    const projects = path.join(root, ".mcpjvm", "my-project", "projects.json");
+    writeJson(projects, {
+      workspaces: [
+        {
+          projectRoot: root,
+          runtimeContexts: [
+            {
+              name: "terminal-cli",
+              mode: "terminal",
+              autoStart: true,
+              startups: [{ name: "visits-service", command: "java" }],
+            },
+          ],
+          externalSystems: [
+            {
+              name: "visits-api",
+              kind: "service",
+              host: "127.0.0.1",
+              port,
+              healthChecks: [{ id: "http-ready", type: "http", url: `http://127.0.0.1:${port}/health`, required: true }],
+            },
+          ],
+        },
+      ],
+    });
+    writeJson(path.join(root, ".mcpjvm", "probe-config.json"), {
+      defaultProfile: "dev",
+      profiles: {
+        dev: {
+          probes: {
+            "visits-service": {
+              baseUrl: "http://127.0.0.1:65533",
+              include: ["org.example.visits.**"],
+              exclude: [],
+            },
+          },
+        },
+      },
+      workspaces: [{ root, profile: "dev" }],
+    });
+
+    const out = await resolveProjectContextForRegression({
+      workspaceRootAbs: root,
+      projectsFileAbs: projects,
+      strictProbeVerification: true,
+      runtimeStarter: async () => {
+        starterCalled += 1;
+        return { attempted: true, success: false, detail: "probe wiring missing" };
+      },
+    });
+
+    assert.equal(starterCalled, 1);
+    assert.equal(out.status, "blocked");
+    if (out.status === "blocked") {
+      assert.equal(out.reasonCode, "external_healthcheck_failed");
+      assert.equal(out.checks?.some((entry: string) => entry.includes("probe:http://127.0.0.1:65533=unreachable")), true);
+    }
+  } finally {
+    apiServer.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
