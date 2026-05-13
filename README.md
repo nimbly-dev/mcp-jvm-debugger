@@ -4,16 +4,16 @@
 [![npm](https://img.shields.io/badge/npm-11.6.2-CB3837?logo=npm&logoColor=white)](https://www.npmjs.com/)
 [![JDK](https://img.shields.io/badge/JDK-17%2B-007396?logo=openjdk&logoColor=white)](https://openjdk.org/)
 [![Java Agent Target](https://img.shields.io/badge/Java%20Agent%20Target-17-ED8B00?logo=openjdk&logoColor=white)](https://maven.apache.org/)
-[![package](https://img.shields.io/badge/package-mcp--java--dev--tools%400.1.5-0A66C2)](https://github.com/nimbly-dev/mcp-java-dev-tools)
+[![package](https://img.shields.io/badge/package-mcp--java--dev--tools%400.1.6-0A66C2)](https://github.com/nimbly-dev/mcp-java-dev-tools)
 [![MCP Badge](https://lobehub.com/badge/mcp/nimbly-dev-mcp-java-dev-tools?style=flat)](https://lobehub.com/mcp/nimbly-dev-mcp-java-dev-tools)
 
 **MCP Java Dev Tools** bridges agentic coding tools and live Java runtime behavior through a lightweight sidecar agent.
 
-Static analysis only gets you so far. By attaching directly to a running JVM, this tool surfaces bytecode-level runtime signals that static analysis alone can't see — enabling probe-verified inspection, targeted regression checks, runtime-path validation, and deterministic debugging workflows.
+Static analysis only gets you so far. By attaching directly to a running JVM, this tool surfaces bytecode-level runtime signals that static analysis alone can't see â€” enabling probe-verified inspection, targeted regression checks, runtime-path validation, and deterministic debugging workflows.
 
-The runtime agent is built with ByteBuddy and works alongside JDWP rather than replacing it. On top of the probe layer, the system adds framework-aware data synthesis and strict, fail-closed tool contracts — so agent orchestrators can make decisions grounded in actual runtime proof, not inference.
+The runtime agent is built with ByteBuddy and works alongside JDWP rather than replacing it. On top of the probe layer, the system adds framework-aware data synthesis and strict, fail-closed tool contracts â€” so agent orchestrators can make decisions grounded in actual runtime proof, not inference.
 
-The current focus is HTTP entrypoints. Non-HTTP protocol support is on the horizon but not yet implemented — it will need concrete models and validation targets before the core contracts can be generalized.
+The current focus is HTTP entrypoints. Non-HTTP protocol support is on the horizon but not yet implemented â€” it will need concrete models and validation targets before the core contracts can be generalized.
 
 For operator workflows and end-to-end execution flows, see [docs/how-it-works/README.md](./docs/how-it-works/README.md).
 
@@ -39,8 +39,8 @@ mvn -f java-agent\pom.xml package
 ```
 
 This produces two artifacts:
-- **MCP server** → `dist/server.js`
-- **Java agent bundle** → `java-agent/core/core-probe/target/mcp-java-dev-tools-agent-0.1.0-all.jar`
+- **MCP server** â†’ `dist/server.js`
+- **Java agent bundle** â†’ `java-agent/core/core-probe/target/mcp-java-dev-tools-agent-0.1.0-all.jar`
 
 ---
 
@@ -106,7 +106,7 @@ The target JVM must run on **Java 17 or newer**. If you're on Java 21, see [Java
 Add the following as a JVM argument when launching your application, replacing `{desktopName}`:
 
 ```text
--javaagent:C:\Users\{desktopName}\repository\mcp-java-dev-tools\java-agent\core\core-probe\target\mcp-java-dev-tools-agent-0.1.5.jar=host=0.0.0.0;port=9191;exclude=com.nimbly.mcpjavadevtools.agent.**,**.config.**,**Test
+-javaagent:C:\Users\{desktopName}\repository\mcp-java-dev-tools\java-agent\core\core-probe\target\mcp-java-dev-tools-agent-0.1.6.jar=host=0.0.0.0;port=9191;exclude=com.nimbly.mcpjavadevtools.agent.**,**.config.**,**Test
 ```
 
 > **Tip:** The `include` filter is optional. If omitted, the agent infers an include scope from startup command metadata (`sun.java.command`), usually the startup class package (for example `com.acme.app.**`). Set `include` explicitly when inference is ambiguous or too broad.
@@ -127,14 +127,14 @@ If you don't see your classes listed, check your `include` filter.
 ---
 
 <details>
-<summary><strong>IntelliJ IDEA — Step by Step</strong></summary>
+<summary><strong>IntelliJ IDEA â€” Step by Step</strong></summary>
 
 1. Open **Run > Edit Configurations...** from the top menu
 2. Select the run configuration for your target application (or create one if it doesn't exist)
 3. Expand the **Modify options** dropdown and enable **Add VM options** if it isn't already visible
 4. In the **VM options** field, paste the full `-javaagent:...` argument from above
 5. Click **Apply**, then **OK**
-6. Run your application normally — the agent attaches on startup
+6. Run your application normally â€” the agent attaches on startup
 
 **Finding the JAR path:** If you're unsure of the absolute path, right-click the agent JAR in the Project panel and choose **Copy Path > Absolute Path**.
 
@@ -145,7 +145,7 @@ If you don't see your classes listed, check your `include` filter.
 ---
 
 <details>
-<summary><strong>Eclipse — Step by Step</strong></summary>
+<summary><strong>Eclipse â€” Step by Step</strong></summary>
 
 1. Go to **Run > Run Configurations...** (or **Debug Configurations...** if you're debugging)
 2. Select your application under **Java Application**, or create a new one
@@ -202,10 +202,10 @@ Default is `false`.
 
 | Variable | Default | Notes |
 |---|---|---|
-| `MCP_JAVA_REQUEST_MAPPING_RESOLVER_JAR` | — | |
-| `MCP_JAVA_REQUEST_MAPPING_RESOLVER_CLASSPATH` | — | |
-| `MCP_JAVA_BIN` | — | |
-| `MCP_PROBE_LINE_SELECTION_MAX_SCAN_LINES` | `120` | Range: 10–2000 |
+| `MCP_JAVA_REQUEST_MAPPING_RESOLVER_JAR` | â€” | |
+| `MCP_JAVA_REQUEST_MAPPING_RESOLVER_CLASSPATH` | â€” | |
+| `MCP_JAVA_BIN` | â€” | |
+| `MCP_PROBE_LINE_SELECTION_MAX_SCAN_LINES` | `120` | Range: 10â€“2000 |
 | `MCP_PROBE_WAIT_MAX_RETRIES` | `1` | Max: 10 |
 | `MCP_PROBE_WAIT_UNREACHABLE_RETRY_ENABLED` | `false` | |
 | `MCP_PROBE_WAIT_UNREACHABLE_MAX_RETRIES` | `3` | Max: 10 |
