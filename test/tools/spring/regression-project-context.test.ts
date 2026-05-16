@@ -574,3 +574,126 @@ test("resolveProjectContextForRegression fails closed when multiple non-terminal
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("resolveProjectContextForRegression executes ordered runPrerequisites before health checks", async () => {
+  const root = createTestTempDir("project-context-run-prereq-order");
+  const marker = path.join(root, "marker.txt");
+  try {
+    const projectName = "petclinic-regression";
+    const projectsFile = path.join(root, ".mcpjvm", projectName, "projects.json");
+    writeJson(projectsFile, {
+      workspaces: [
+        {
+          projectRoot: root,
+          runPrerequisites: [
+            {
+              order: 1,
+              id: "create-marker",
+              type: "script",
+              onFail: "block",
+              script: {
+                command: "node",
+                scriptPath: "scripts/create-marker.js",
+              },
+            },
+            {
+              order: 2,
+              id: "marker-exists",
+              type: "assert",
+              onFail: "block",
+              assert: {
+                kind: "file_exists",
+                path: "marker.txt",
+              },
+            },
+          ],
+          defaults: { retryMax: 1, requestTimeoutMs: 100 },
+          externalSystems: [
+            {
+              name: "dummy",
+              kind: "service",
+              host: "127.0.0.1",
+              port: 1,
+              healthChecks: [{ id: "tcp-open", type: "tcp", target: "127.0.0.1:1", required: true }],
+            },
+          ],
+        },
+      ],
+    });
+    const scriptsDir = path.join(root, "scripts");
+    fs.mkdirSync(scriptsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(scriptsDir, "create-marker.js"),
+      `const fs=require("node:fs");fs.writeFileSync(${JSON.stringify(marker)},"ok\\n","utf8");`,
+      "utf8",
+    );
+
+    const out = await resolveProjectContextForRegression({
+      workspaceRootAbs: root,
+      projectsFileAbs: projectsFile,
+      env: {},
+      healthChecksEnabled: true,
+    });
+
+    assert.equal(fs.existsSync(marker), true);
+    assert.equal(out.status, "blocked");
+    if (out.status === "blocked") {
+      assert.equal(out.reasonCode, "external_healthcheck_failed");
+      assert.equal(out.checks?.[0]?.startsWith("run_prereq:create-marker=pass"), true);
+      assert.equal(out.checks?.[1]?.startsWith("run_prereq:marker-exists=pass"), true);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("resolveProjectContextForRegression dedupes health checks covered by runPrerequisites", async () => {
+  const root = createTestTempDir("project-context-run-prereq-dedupe");
+  const server = http.createServer((_req: any, res: any) => {
+    res.statusCode = 200;
+    res.end("ok");
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+  try {
+    const addr = server.address();
+    if (!addr || typeof addr === "string") throw new Error("addr missing");
+    const url = `http://127.0.0.1:${addr.port}/health`;
+    const projectsFile = path.join(root, ".mcpjvm", "petclinic-regression", "projects.json");
+    writeJson(projectsFile, {
+      workspaces: [
+        {
+          projectRoot: root,
+          runPrerequisites: [
+            {
+              order: 1,
+              id: "url-ready",
+              type: "assert",
+              onFail: "block",
+              assert: { kind: "url_reachable", url, timeoutMs: 2000 },
+            },
+          ],
+          externalSystems: [
+            {
+              name: "api",
+              kind: "service",
+              host: "127.0.0.1",
+              port: addr.port,
+              healthChecks: [{ id: "ready", type: "http", url, required: true }],
+            },
+          ],
+        },
+      ],
+    });
+
+    const out = await resolveProjectContextForRegression({
+      workspaceRootAbs: root,
+      projectsFileAbs: projectsFile,
+      healthChecksEnabled: true,
+    });
+
+    assert.equal(out.status, "ok");
+  } finally {
+    server.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

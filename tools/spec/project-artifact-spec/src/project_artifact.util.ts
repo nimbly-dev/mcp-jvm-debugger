@@ -6,6 +6,7 @@ import type {
   ProjectArtifact,
   ProjectArtifactValidationResult,
   ProjectExternalSystem,
+  RunPrerequisite,
   ProjectRuntimeContext,
   ProjectRuntimeStartupEntry,
   ProjectWorkspaceEntry,
@@ -188,6 +189,117 @@ function normalizeExternalSystem(input: unknown, index: number, errors: string[]
   };
 }
 
+function normalizeRunPrerequisite(input: unknown, index: number, errors: string[]): RunPrerequisite | null {
+  if (!isRecord(input)) {
+    errors.push(`workspaces[].runPrerequisites[${index}] must be object`);
+    return null;
+  }
+  const order = input.order;
+  const id = asTrimmedString(input.id);
+  const type = asTrimmedString(input.type);
+  const onFail = asTrimmedString(input.onFail);
+  if (typeof order !== "number" || !Number.isInteger(order) || order <= 0) {
+    errors.push(`workspaces[].runPrerequisites[${index}].order must be a positive integer`);
+  }
+  if (!id) errors.push(`workspaces[].runPrerequisites[${index}].id is required`);
+  if (type !== "assert" && type !== "script") {
+    errors.push(`workspaces[].runPrerequisites[${index}].type must be assert|script`);
+  }
+  if (onFail !== "block" && onFail !== "skip_remaining") {
+    errors.push(`workspaces[].runPrerequisites[${index}].onFail must be block|skip_remaining`);
+  }
+  if (type === "assert") {
+    if (!isRecord(input.assert)) {
+      errors.push(`workspaces[].runPrerequisites[${index}].assert is required for type=assert`);
+      return null;
+    }
+    const kind = asTrimmedString(input.assert.kind);
+    if (
+      kind !== "env_exists" &&
+      kind !== "context_exists" &&
+      kind !== "file_exists" &&
+      kind !== "port_reachable" &&
+      kind !== "url_reachable" &&
+      kind !== "command_available"
+    ) {
+      errors.push(`workspaces[].runPrerequisites[${index}].assert.kind is invalid`);
+      return null;
+    }
+    if ((kind === "env_exists" || kind === "context_exists") && !asTrimmedString(input.assert.key)) {
+      errors.push(`workspaces[].runPrerequisites[${index}].assert.key is required for kind=${kind}`);
+      return null;
+    }
+    if (kind === "file_exists" && !asTrimmedString(input.assert.path)) {
+      errors.push(`workspaces[].runPrerequisites[${index}].assert.path is required for kind=file_exists`);
+      return null;
+    }
+    if (kind === "port_reachable") {
+      if (!asTrimmedString(input.assert.host) || !isPositivePort(input.assert.port)) {
+        errors.push(`workspaces[].runPrerequisites[${index}].assert host/port are required for kind=port_reachable`);
+        return null;
+      }
+    }
+    if (kind === "url_reachable" && !asTrimmedString(input.assert.url)) {
+      errors.push(`workspaces[].runPrerequisites[${index}].assert.url is required for kind=url_reachable`);
+      return null;
+    }
+    if (kind === "command_available" && !asTrimmedString(input.assert.name)) {
+      errors.push(`workspaces[].runPrerequisites[${index}].assert.name is required for kind=command_available`);
+      return null;
+    }
+    return {
+      order: Number(order),
+      id: id ?? `run-prereq-${index + 1}`,
+      type: "assert",
+      onFail: (onFail as "block" | "skip_remaining") ?? "block",
+      assert: {
+        kind,
+        ...(asTrimmedString(input.assert.key) ? { key: asTrimmedString(input.assert.key) as string } : {}),
+        ...(asTrimmedString(input.assert.path) ? { path: asTrimmedString(input.assert.path) as string } : {}),
+        ...(asTrimmedString(input.assert.host) ? { host: asTrimmedString(input.assert.host) as string } : {}),
+        ...(isPositivePort(input.assert.port) ? { port: input.assert.port } : {}),
+        ...(asTrimmedString(input.assert.url) ? { url: asTrimmedString(input.assert.url) as string } : {}),
+        ...(asTrimmedString(input.assert.name) ? { name: asTrimmedString(input.assert.name) as string } : {}),
+        ...(typeof input.assert.timeoutMs === "number" ? { timeoutMs: input.assert.timeoutMs } : {}),
+      },
+    };
+  }
+  if (!isRecord(input.script)) {
+    errors.push(`workspaces[].runPrerequisites[${index}].script is required for type=script`);
+    return null;
+  }
+  const command = asTrimmedString(input.script.command);
+  if (command !== "python" && command !== "node" && command !== "sh" && command !== "ps") {
+    errors.push(`workspaces[].runPrerequisites[${index}].script.command must be python|node|sh|ps`);
+    return null;
+  }
+  const scriptPath = asTrimmedString(input.script.scriptPath);
+  if (!scriptPath) {
+    errors.push(`workspaces[].runPrerequisites[${index}].script.scriptPath is required`);
+    return null;
+  }
+  const args = Array.isArray(input.script.args)
+    ? input.script.args
+        .filter((arg) => typeof arg === "string")
+        .map((arg) => String(arg).trim())
+        .filter((arg) => arg.length > 0)
+    : undefined;
+  const cwd = asTrimmedString(input.script.cwd) ?? undefined;
+  return {
+    order: Number(order),
+    id: id ?? `run-prereq-${index + 1}`,
+    type: "script",
+    onFail: (onFail as "block" | "skip_remaining") ?? "block",
+    script: {
+      command,
+      scriptPath,
+      ...(args && args.length > 0 ? { args } : {}),
+      ...(cwd ? { cwd } : {}),
+      ...(typeof input.script.timeoutMs === "number" ? { timeoutMs: input.script.timeoutMs } : {}),
+    },
+  };
+}
+
 function normalizeWorkspace(input: unknown, index: number, errors: string[]): ProjectWorkspaceEntry | null {
   if (!isRecord(input)) {
     errors.push(`workspaces[${index}] must be object`);
@@ -219,6 +331,20 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
         .map((entry, i) => normalizeRuntimeContext(entry, i, errors))
         .filter((entry): entry is ProjectRuntimeContext => entry !== null)
     : [];
+  const runPrerequisites = Array.isArray(input.runPrerequisites)
+    ? input.runPrerequisites
+        .map((entry, i) => normalizeRunPrerequisite(entry, i, errors))
+        .filter((entry): entry is RunPrerequisite => entry !== null)
+    : [];
+  if (runPrerequisites.length > 0) {
+    const orders = runPrerequisites.map((entry) => entry.order).sort((a, b) => a - b);
+    for (let i = 0; i < orders.length; i += 1) {
+      if (orders[i] !== i + 1) {
+        errors.push("workspaces[].runPrerequisites[].order must be sequential from 1..N");
+        break;
+      }
+    }
+  }
   const externalSystems = Array.isArray(input.externalSystems)
     ? input.externalSystems
         .map((entry, i) => normalizeExternalSystem(entry, i, errors))
@@ -238,6 +364,7 @@ function normalizeWorkspace(input: unknown, index: number, errors: string[]): Pr
     ...(envFile ? { envFile } : {}),
     ...(variables ? { variables } : {}),
     ...(runtimeContexts.length > 0 ? { runtimeContexts } : {}),
+    ...(runPrerequisites.length > 0 ? { runPrerequisites } : {}),
     ...(externalSystems.length > 0 ? { externalSystems } : {}),
     ...(defaults ? { defaults } : {}),
   };

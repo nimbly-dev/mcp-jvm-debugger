@@ -1,4 +1,42 @@
 export type ProjectRuntimeMode = "terminal" | "docker";
+export type RunPrerequisiteType = "assert" | "script";
+export type RunPrerequisiteOnFail = "block" | "skip_remaining";
+export type RunPrerequisiteAssertKind =
+  | "env_exists"
+  | "context_exists"
+  | "file_exists"
+  | "port_reachable"
+  | "url_reachable"
+  | "command_available";
+export type RunPrerequisiteScriptCommand = "python" | "node" | "sh" | "ps";
+
+export type RunPrerequisiteAssert = {
+  kind: RunPrerequisiteAssertKind;
+  key?: string;
+  path?: string;
+  host?: string;
+  port?: number;
+  url?: string;
+  name?: string;
+  timeoutMs?: number;
+};
+
+export type RunPrerequisiteScript = {
+  command: RunPrerequisiteScriptCommand;
+  scriptPath: string;
+  args?: string[];
+  cwd?: string;
+  timeoutMs?: number;
+};
+
+export type RunPrerequisite = {
+  order: number;
+  id: string;
+  type: RunPrerequisiteType;
+  onFail: RunPrerequisiteOnFail;
+  assert?: RunPrerequisiteAssert;
+  script?: RunPrerequisiteScript;
+};
 
 export type ProjectRuntimeStartupEntry = {
   name: string;
@@ -52,6 +90,7 @@ export type ProjectWorkspaceEntry = {
     bearerTokenEnv?: string;
   };
   runtimeContexts?: ProjectRuntimeContext[];
+  runPrerequisites?: RunPrerequisite[];
   externalSystems?: ProjectExternalSystem[];
   defaults?: {
     requestTimeoutMs?: number;
