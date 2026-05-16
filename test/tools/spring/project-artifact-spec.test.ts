@@ -143,3 +143,65 @@ test("write/read project artifact preserves deterministic shape", async () => {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("validateProjectArtifact accepts runPrerequisites with enum-constrained script/assert", () => {
+  const result = validateProjectArtifact({
+    workspaces: [
+      {
+        projectRoot: "C:\\workspace\\spring",
+        runPrerequisites: [
+          {
+            order: 1,
+            id: "bootstrap",
+            type: "script",
+            onFail: "block",
+            script: {
+              command: "node",
+              scriptPath: "scripts/bootstrap.js",
+              args: ["--safe"],
+              timeoutMs: 5000,
+            },
+          },
+          {
+            order: 2,
+            id: "assert-auth",
+            type: "assert",
+            onFail: "block",
+            assert: {
+              kind: "env_exists",
+              key: "AUTH_BEARER_TOKEN",
+            },
+          },
+        ],
+      },
+    ],
+  });
+  assert.equal(result.ok, true);
+});
+
+test("validateProjectArtifact fails closed for non-sequential runPrerequisites order", () => {
+  const result = validateProjectArtifact({
+    workspaces: [
+      {
+        projectRoot: "C:\\workspace\\spring",
+        runPrerequisites: [
+          {
+            order: 1,
+            id: "bootstrap",
+            type: "script",
+            onFail: "block",
+            script: { command: "node", scriptPath: "scripts/bootstrap.js" },
+          },
+          {
+            order: 3,
+            id: "assert-auth",
+            type: "assert",
+            onFail: "block",
+            assert: { kind: "env_exists", key: "AUTH_BEARER_TOKEN" },
+          },
+        ],
+      },
+    ],
+  });
+  assert.equal(result.ok, false);
+});

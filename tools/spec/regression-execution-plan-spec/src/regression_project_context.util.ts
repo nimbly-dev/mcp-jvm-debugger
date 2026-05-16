@@ -4,7 +4,11 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { URL } from "node:url";
 
-import type { ProjectRuntimeContext, ProjectWorkspaceEntry } from "@tools-project-artifact-spec/models/project_artifact.model";
+import type {
+  ProjectRuntimeContext,
+  ProjectWorkspaceEntry,
+  RunPrerequisite,
+} from "@tools-project-artifact-spec/models/project_artifact.model";
 import { readProjectArtifact } from "@tools-project-artifact-spec/project_artifact.util";
 
 type ProjectContextBlockedReason =
@@ -359,6 +363,231 @@ async function runRequiredHealthChecks(workspace: ProjectWorkspaceEntry): Promis
   return { ok: true, checks };
 }
 
+function buildHealthcheckKeyFromRunPrerequisite(prereq: RunPrerequisite): string | null {
+  if (prereq.type !== "assert" || !prereq.assert) return null;
+  if (prereq.assert.kind === "port_reachable" && prereq.assert.host && prereq.assert.port) {
+    return `tcp:${prereq.assert.host}:${prereq.assert.port}`;
+  }
+  if (prereq.assert.kind === "url_reachable" && prereq.assert.url) {
+    return `http:${prereq.assert.url}`;
+  }
+  return null;
+}
+
+function buildHealthcheckKey(check: { type: "tcp" | "http"; target?: string; url?: string }): string | null {
+  if (check.type === "tcp" && typeof check.target === "string") return `tcp:${check.target}`;
+  if (check.type === "http" && typeof check.url === "string") return `http:${check.url}`;
+  return null;
+}
+
+async function runRequiredHealthChecksWithDedupe(args: {
+  workspace: ProjectWorkspaceEntry;
+  skipKeys: Set<string>;
+}): Promise<{
+  ok: true;
+  checks: string[];
+} | {
+  ok: false;
+  checks: string[];
+  failures: string[];
+  nextAction: string;
+  requiredUserAction: string[];
+}> {
+  const retryMaxRaw = args.workspace.defaults?.retryMax;
+  const retryMax =
+    typeof retryMaxRaw === "number" && Number.isFinite(retryMaxRaw) && retryMaxRaw > 0
+      ? Math.floor(retryMaxRaw)
+      : 1;
+  const timeoutDefaultRaw = args.workspace.defaults?.requestTimeoutMs;
+  const timeoutDefaultMs =
+    typeof timeoutDefaultRaw === "number" && Number.isFinite(timeoutDefaultRaw) && timeoutDefaultRaw > 0
+      ? Math.floor(timeoutDefaultRaw)
+      : 3000;
+  const systems = args.workspace.externalSystems ?? [];
+  const failures: string[] = [];
+  const checks: string[] = [];
+  for (const system of systems) {
+    for (const check of system.healthChecks ?? []) {
+      const required = check.required === true;
+      if (!required) continue;
+      const dedupeKey = buildHealthcheckKey(check);
+      if (dedupeKey && args.skipKeys.has(dedupeKey)) {
+        checks.push(`${system.name}:${check.id}=covered_by_run_prerequisite`);
+        continue;
+      }
+      const timeoutMs = typeof check.timeoutMs === "number" ? check.timeoutMs : timeoutDefaultMs;
+      let ok = false;
+      for (let attempt = 1; attempt <= retryMax; attempt += 1) {
+        if (check.type === "tcp") {
+          ok = await tcpCheck(check.target, timeoutMs);
+        } else {
+          ok = await httpCheck(
+            check.url,
+            check.method ?? "GET",
+            timeoutMs,
+            check.expect?.status,
+          );
+        }
+        if (ok) break;
+      }
+      checks.push(`${system.name}:${check.id}=${ok ? "ready" : "unreachable"}`);
+      if (!ok) failures.push(`${system.name}:${check.id}`);
+    }
+  }
+  if (failures.length > 0) {
+    return {
+      checks,
+      failures,
+      nextAction: `Ensure services are running or update .env/runtime config for: ${failures.join(", ")}.`,
+      ok: false,
+      requiredUserAction: [`External health checks failed: ${failures.join(", ")}`],
+    };
+  }
+  return { ok: true, checks };
+}
+
+async function isCommandAvailable(commandName: string): Promise<boolean> {
+  const bin = process.platform === "win32" ? "where" : "which";
+  return await new Promise<boolean>((resolve) => {
+    const child = spawn(bin, [commandName], { windowsHide: true });
+    child.on("close", (code) => resolve(code === 0));
+    child.on("error", () => resolve(false));
+  });
+}
+
+async function executeRunPrerequisites(args: {
+  workspace: ProjectWorkspaceEntry;
+  workspaceRootAbs: string;
+  env: Record<string, string | undefined>;
+  contextPatch: Record<string, unknown>;
+}): Promise<
+  | { status: "ok"; checks: string[]; dedupeKeys: Set<string> }
+  | {
+      status: "blocked";
+      reasonCode: ProjectContextBlockedReason;
+      checks: string[];
+      nextAction: string;
+      requiredUserAction: string[];
+    }
+> {
+  const prereqs = [...(args.workspace.runPrerequisites ?? [])].sort((a, b) => a.order - b.order);
+  if (prereqs.length === 0) return { status: "ok", checks: [], dedupeKeys: new Set<string>() };
+  const checks: string[] = [];
+  const dedupeKeys = new Set<string>();
+  for (const prereq of prereqs) {
+    if (prereq.type === "assert" && prereq.assert) {
+      let ok = false;
+      if (prereq.assert.kind === "env_exists") {
+        const val = prereq.assert.key ? args.env[prereq.assert.key] : undefined;
+        ok = typeof val === "string" && val.trim().length > 0;
+      } else if (prereq.assert.kind === "context_exists") {
+        const val = prereq.assert.key ? args.contextPatch[prereq.assert.key] : undefined;
+        ok = typeof val !== "undefined" && val !== null && String(val).trim().length > 0;
+      } else if (prereq.assert.kind === "file_exists") {
+        const rel = prereq.assert.path ?? "";
+        const abs = path.isAbsolute(rel) ? rel : path.resolve(args.workspaceRootAbs, rel);
+        try {
+          const stat = await fs.stat(abs);
+          ok = stat.isFile();
+        } catch {
+          ok = false;
+        }
+      } else if (prereq.assert.kind === "port_reachable") {
+        ok = await tcpCheck(`${prereq.assert.host}:${prereq.assert.port}`, prereq.assert.timeoutMs ?? 3000);
+      } else if (prereq.assert.kind === "url_reachable") {
+        ok = await httpCheck(prereq.assert.url ?? "", "GET", prereq.assert.timeoutMs ?? 3000);
+      } else if (prereq.assert.kind === "command_available") {
+        ok = await isCommandAvailable(prereq.assert.name ?? "");
+      }
+      checks.push(`run_prereq:${prereq.id}=${ok ? "pass" : "fail"}`);
+      if (ok) {
+        const key = buildHealthcheckKeyFromRunPrerequisite(prereq);
+        if (key) dedupeKeys.add(key);
+        continue;
+      }
+      if (prereq.onFail === "skip_remaining") {
+        checks.push(`run_prereq:${prereq.id}=skip_remaining`);
+        break;
+      }
+      return {
+        status: "blocked",
+        reasonCode: "external_healthcheck_failed",
+        checks,
+        nextAction: `Fix run prerequisite '${prereq.id}' and retry.`,
+        requiredUserAction: [`Run prerequisite '${prereq.id}' failed.`],
+      };
+    }
+    if (prereq.type === "script" && prereq.script) {
+      const script = prereq.script;
+      const scriptAbs = path.isAbsolute(script.scriptPath)
+        ? script.scriptPath
+        : path.resolve(args.workspaceRootAbs, script.scriptPath);
+      const cwd = script.cwd
+        ? (path.isAbsolute(script.cwd) ? script.cwd : path.resolve(args.workspaceRootAbs, script.cwd))
+        : args.workspaceRootAbs;
+      const timeoutMs = typeof script.timeoutMs === "number" && script.timeoutMs > 0 ? script.timeoutMs : 120000;
+      let command = "";
+      let cmdArgs: string[] = [];
+      if (script.command === "node") {
+        command = "node";
+        cmdArgs = [scriptAbs, ...(script.args ?? [])];
+      } else if (script.command === "python") {
+        command = "python";
+        cmdArgs = [scriptAbs, ...(script.args ?? [])];
+      } else if (script.command === "sh") {
+        command = "sh";
+        cmdArgs = [scriptAbs, ...(script.args ?? [])];
+      } else {
+        command = "powershell";
+        cmdArgs = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptAbs, ...(script.args ?? [])];
+      }
+      const result = await new Promise<{ ok: boolean; detail: string }>((resolve) => {
+        const child = spawn(command, cmdArgs, { cwd, env: process.env, windowsHide: true });
+        let stderr = "";
+        let settled = false;
+        const timer = setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          child.kill();
+          resolve({ ok: false, detail: `timeout (${timeoutMs}ms)` });
+        }, timeoutMs);
+        child.stderr.on("data", (buf) => {
+          stderr += String(buf ?? "");
+        });
+        child.on("close", (code) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve({
+            ok: code === 0,
+            detail: code === 0 ? "ok" : (stderr.trim() || `exit_code=${String(code ?? 1)}`),
+          });
+        });
+        child.on("error", (err) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve({ ok: false, detail: String(err.message ?? err) });
+        });
+      });
+      checks.push(`run_prereq:${prereq.id}=${result.ok ? "pass" : `fail(${result.detail})`}`);
+      if (result.ok) continue;
+      if (prereq.onFail === "skip_remaining") {
+        checks.push(`run_prereq:${prereq.id}=skip_remaining`);
+        break;
+      }
+      return {
+        status: "blocked",
+        reasonCode: "external_healthcheck_failed",
+        checks,
+        nextAction: `Fix run prerequisite script '${prereq.id}' and retry.`,
+        requiredUserAction: [`Run prerequisite script '${prereq.id}' failed: ${result.detail}`],
+      };
+    }
+  }
+  return { status: "ok", checks, dedupeKeys };
+}
+
 async function defaultRuntimeStarter(args: {
   runtimeContext: ProjectRuntimeContext;
   workspaceRootAbs: string;
@@ -632,7 +861,26 @@ export async function resolveProjectContextForRegression(
   }
 
   if (args.healthChecksEnabled !== false) {
-    let health = await runRequiredHealthChecks(workspace);
+    const prereqResult = await executeRunPrerequisites({
+      workspace,
+      workspaceRootAbs: args.workspaceRootAbs,
+      env,
+      contextPatch,
+    });
+    if (prereqResult.status === "blocked") {
+      return {
+        status: "blocked",
+        reasonCode: prereqResult.reasonCode,
+        checks: prereqResult.checks,
+        nextAction: prereqResult.nextAction,
+        requiredUserAction: prereqResult.requiredUserAction,
+      };
+    }
+    const prereqChecks = prereqResult.checks;
+    let health = await runRequiredHealthChecksWithDedupe({
+      workspace,
+      skipKeys: prereqResult.dedupeKeys,
+    });
     let autoStartDetail: string | undefined;
     let autoStartAttempted = false;
     let autoStarted = false;
@@ -650,7 +898,10 @@ export async function resolveProjectContextForRegression(
       if (autoStarted) {
         await new Promise((resolve) => setTimeout(resolve, 1500));
       }
-      health = await runRequiredHealthChecks(workspace);
+      health = await runRequiredHealthChecksWithDedupe({
+        workspace,
+        skipKeys: prereqResult.dedupeKeys,
+      });
     }
     let strictProbeBases =
       Array.isArray(args.strictProbeBaseUrls)
@@ -709,9 +960,12 @@ export async function resolveProjectContextForRegression(
         }
       }
       if (unreachableBases.length > 0) {
-        const checks = strictProbeBases.map((probeBase) =>
+        const checks = [
+          ...prereqChecks,
+          ...strictProbeBases.map((probeBase) =>
           `probe:${probeBase}=${unreachableBases.includes(probeBase) ? "unreachable" : "ready"}`,
-        );
+          ),
+        ];
         if (autoStartAttempted) {
           checks.push(`runtime:auto_start=${autoStarted ? "ok" : "failed"}`);
         }
@@ -730,7 +984,7 @@ export async function resolveProjectContextForRegression(
       }
     }
     if (!health.ok) {
-      const checks = [...health.checks];
+      const checks = [...prereqChecks, ...health.checks];
       if (autoStartAttempted) {
         checks.push(`runtime:auto_start=${autoStarted ? "ok" : "failed"}`);
       }
