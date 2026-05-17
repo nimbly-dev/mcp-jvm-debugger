@@ -11,7 +11,6 @@
       "@tools-core/*": ["tools/core/tools-core/src/*"],
       "@tools-registry/*": ["tools/core/tools-registry/src/*"],
       "@tools-spring-http/*": ["tools/synthesizers/tools-spring-http/src/*"],
-      "@tools-export-run-session/*": ["tools/export/run-session/*"],
       "@tools-regression-execution-plan-spec/*": ["tools/spec/regression-execution-plan-spec/src/*"],
       "@tools-project-artifact-spec/*": ["tools/spec/project-artifact-spec/src/*"]
     },
@@ -59,7 +58,6 @@
     "tools/core/tools-core/src/**/*.ts",
     "tools/core/tools-registry/src/**/*.ts",
     "tools/synthesizers/tools-spring-http/src/**/*.ts",
-    "tools/export/run-session/**/*.ts",
     "tools/spec/regression-execution-plan-spec/src/**/*.ts",
     "tools/spec/project-artifact-spec/src/**/*.ts"
   ],

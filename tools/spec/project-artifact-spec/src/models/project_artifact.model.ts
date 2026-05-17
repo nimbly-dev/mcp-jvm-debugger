@@ -114,10 +114,6 @@ export type ProjectWorkspaceEntry = {
   executionProfiles?: ExecutionProfileEntry[];
   runPrerequisites?: RunPrerequisite[];
   externalSystems?: ProjectExternalSystem[];
-  sessionExport?: {
-    includeRuntimeStartup?: boolean;
-    includeHealthcheckGate?: boolean;
-  };
   defaults?: {
     requestTimeoutMs?: number;
     retryMax?: number;
